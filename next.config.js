@@ -3,11 +3,13 @@ const nextConfig = {
   images: {
     domains: ['images.unsplash.com'],
   },
+  // Optimize for mobile-only deployment
   experimental: {
-    serverActions: {
-      allowedOrigins: ['localhost:3000'],
-    },
+    optimizeFonts: true,
   },
+  // Ensure proper handling of client-side navigation
+  reactStrictMode: true,
+  swcMinify: true,
   webpack: (config) => {
     config.resolve.fallback = {
       ...config.resolve.fallback,

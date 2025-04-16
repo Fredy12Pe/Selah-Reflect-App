@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { auth } from "@/lib/firebase";
+import { auth, signInWithGoogle } from "@/lib/firebase";
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   updateProfile,
 } from "firebase/auth";
+import Image from "next/image";
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -38,12 +39,47 @@ export default function Auth() {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    try {
+      await signInWithGoogle();
+      router.push("/");
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col justify-center px-6">
       <div className="max-w-md w-full mx-auto">
         <h2 className="text-center text-3xl font-extrabold text-gray-900 mb-8">
           {isLogin ? "Sign in to Selah" : "Create your account"}
         </h2>
+
+        <div className="mb-6">
+          <button
+            onClick={handleGoogleSignIn}
+            className="w-full flex justify-center items-center gap-3 py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+          >
+            <Image
+              src="https://www.google.com/images/branding/googleg/1x/googleg_standard_color_128dp.png"
+              alt="Google logo"
+              width={20}
+              height={20}
+            />
+            Continue with Google
+          </button>
+        </div>
+
+        <div className="relative my-6">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-300"></div>
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="px-2 bg-gray-100 text-gray-500">
+              Or continue with email
+            </span>
+          </div>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {!isLogin && (
