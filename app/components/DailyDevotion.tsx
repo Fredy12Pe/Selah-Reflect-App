@@ -4,16 +4,15 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import Image from "next/image";
-import { auth } from "@/lib/firebase";
-import { onAuthStateChanged } from "firebase/auth";
+import { useAuth } from "@/app/context/AuthContext";
 
 export default function DailyDevotion() {
   const router = useRouter();
+  const { user, loading } = useAuth();
   const [userName, setUserName] = useState<string>("");
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    if (!loading) {
       if (user) {
         const displayName =
           user.displayName?.split(" ")[0] ||
@@ -22,13 +21,9 @@ export default function DailyDevotion() {
         setUserName(displayName);
       } else {
         router.push("/auth/login");
-        return;
       }
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [router]);
+    }
+  }, [user, loading, router]);
 
   if (loading) {
     return (
@@ -36,6 +31,10 @@ export default function DailyDevotion() {
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white"></div>
       </div>
     );
+  }
+
+  if (!user) {
+    return null;
   }
 
   return (

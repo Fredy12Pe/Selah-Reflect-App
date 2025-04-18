@@ -40,15 +40,28 @@ export default function BibleVerseDisplay({
 
   if (loading) {
     return (
-      <div className="animate-pulse p-4 bg-gray-100 rounded-lg">
-        <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-        <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+      <div className="relative overflow-hidden rounded-3xl">
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-md" />
+        <div className="relative z-1 p-6 sm:p-8">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 bg-white/20 rounded w-3/4"></div>
+            <div className="h-4 bg-white/20 rounded w-full"></div>
+            <div className="h-4 bg-white/20 rounded w-5/6"></div>
+          </div>
+        </div>
       </div>
     );
   }
 
   if (error) {
-    return <div className="p-4 bg-red-50 text-red-600 rounded-lg">{error}</div>;
+    return (
+      <div className="relative overflow-hidden rounded-3xl">
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-md" />
+        <div className="relative z-1 p-6 sm:p-8">
+          <div className="text-red-400">{error}</div>
+        </div>
+      </div>
+    );
   }
 
   if (!verse) {
@@ -59,11 +72,17 @@ export default function BibleVerseDisplay({
   const cleanText = verse.text.replace(/<\/?[^>]+(>|$)/g, "");
 
   return (
-    <div className="p-4 bg-white rounded-lg shadow">
-      <p className="text-lg font-serif mb-2">{cleanText}</p>
-      <p className="text-sm text-gray-600">
-        {verse.reference} ({translation})
-      </p>
+    <div className="relative overflow-hidden rounded-3xl">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-md" />
+      <div className="relative z-1 p-6 sm:p-8 space-y-6">
+        <h2 className="text-white text-4xl font-bold tracking-tight">
+          {verse.reference}
+        </h2>
+        <p className="text-white/90 text-xl leading-relaxed font-light">
+          {cleanText}
+        </p>
+        <p className="text-white/70 text-sm">{translation}</p>
+      </div>
     </div>
   );
 }

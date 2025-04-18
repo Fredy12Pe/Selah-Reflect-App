@@ -1,11 +1,43 @@
 "use client";
 
+/**
+ * Daily Reflection Page
+ *
+ * This page provides an interactive reflection experience:
+ * - Recap of today's scripture
+ * - Guided reflection questions
+ * - Hymn of the month
+ * - AI-powered reflection assistant
+ *
+ * Route: /devotion/[date]/reflection
+ * Example: /devotion/2024-03-19/reflection
+ */
+
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
-import { format } from "date-fns";
-import { auth } from "@/lib/firebase";
-import { onAuthStateChanged } from "firebase/auth";
+import { format, addDays, subDays } from "date-fns";
+import { Outfit } from "next/font/google";
+import Link from "next/link";
+import { useAuth } from "@/app/context/AuthContext";
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ArrowRightIcon,
+} from "@heroicons/react/24/outline";
+import ScriptureModal from "@/app/components/modals/ScriptureModal";
+import JournalModal from "@/app/components/modals/JournalModal";
+import ResourcesModal from "@/app/components/modals/ResourcesModal";
+import { parsePDF, DevotionContent } from "@/lib/pdfUtils";
+import { toast } from "react-hot-toast";
+
+const outfit = Outfit({ subsets: ["latin"] });
+
+// Hymn data - this could be moved to a separate file or database later
+const hymn = {
+  title: "When I survey the Wondrous Cross",
+  image:
+    "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=2000",
+};
 
 export default function ReflectionPage({
   params,
@@ -13,136 +45,183 @@ export default function ReflectionPage({
   params: { date: string };
 }) {
   const router = useRouter();
+  const { user } = useAuth();
+  const [scriptureModalOpen, setScriptureModalOpen] = useState(false);
+  const [journalModalOpen, setJournalModalOpen] = useState(false);
+  const [resourcesModalOpen, setResourcesModalOpen] = useState(false);
+  const [devotionContent, setDevotionContent] =
+    useState<DevotionContent | null>(null);
   const [loading, setLoading] = useState(true);
-  const [userName, setUserName] = useState("");
-  const [aiResponse, setAiResponse] = useState("");
-  const [question, setQuestion] = useState("");
+
+  const date = new Date(params.date);
+  const formattedDate = format(date, "EEEE, MMMM d");
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        const displayName =
-          user.displayName?.split(" ")[0] ||
-          user.email?.split("@")[0] ||
-          "Guest";
-        setUserName(displayName);
+    async function loadDevotionContent() {
+      try {
+        const content = await parsePDF(params.date);
+        setDevotionContent(content);
+      } catch (error) {
+        console.error("Error loading devotion:", error);
+        toast.error("Failed to load devotion content");
+      } finally {
         setLoading(false);
-      } else {
-        router.push("/auth/login");
       }
-    });
+    }
 
-    return () => unsubscribe();
-  }, [router]);
+    if (user) {
+      loadDevotionContent();
+    }
+  }, [user, params.date]);
+
+  const handleDateChange = (newDate: Date) => {
+    const formattedNewDate = format(newDate, "yyyy-MM-dd");
+    router.push(`/devotion/${formattedNewDate}/reflection`);
+  };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white"></div>
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white mx-auto mb-4"></div>
+          <p className="text-white/80">Loading your reflection...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen">
-      {/* Background Layer */}
-      <div className="fixed inset-0">
-        <div className="absolute inset-0">
-          <Image
-            src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=2000"
-            alt="Mountain Background"
-            fill
-            priority
-            sizes="100vw"
-            style={{ objectFit: "cover", zIndex: -1 }}
-          />
+    <main
+      className={`${outfit.className} min-h-screen bg-black text-white pb-8`}
+    >
+      {/* Date Navigation */}
+      <div className="sticky top-0 z-40 bg-black/80 backdrop-blur-lg px-4 py-3">
+        <div className="flex items-center justify-between">
+          <button
+            className="p-2 rounded-full bg-black/40"
+            onClick={() => handleDateChange(subDays(date, 1))}
+          >
+            <ChevronLeftIcon className="w-6 h-6" />
+          </button>
+          <button className="px-6 py-2 rounded-full bg-zinc-800/80">
+            {formattedDate}
+          </button>
+          <button
+            className="p-2 rounded-full bg-black/40"
+            onClick={() => handleDateChange(addDays(date, 1))}
+          >
+            <ChevronRightIcon className="w-6 h-6" />
+          </button>
         </div>
-        <div
-          className="absolute inset-0 bg-gradient-to-b from-black/30 to-black/70"
-          style={{ zIndex: 0 }}
-        />
       </div>
 
-      {/* Content Layer */}
-      <main className="relative min-h-screen p-8" style={{ zIndex: 1 }}>
-        <div className="max-w-4xl mx-auto space-y-8">
-          {/* Header */}
-          <div>
-            <button
-              onClick={() => router.push("/devotion")}
-              className="text-white mb-6 flex items-center space-x-2"
-            >
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-              <span>Back to Daily Devotion</span>
-            </button>
-            <h1 className="text-4xl font-bold text-white">
-              Reflection for {format(new Date(params.date), "MMMM d, yyyy")}
-            </h1>
-          </div>
-
-          {/* Scripture and Reflection */}
-          <div className="bg-black/50 backdrop-blur-[90px] rounded-[20px] p-8 text-white">
-            <h2 className="text-2xl font-bold mb-4">Luke 23: 26-34</h2>
-            <p className="text-lg mb-8">
-              As the soldiers led him away, they seized Simon from Cyrene...
+      <div className="px-4 space-y-6">
+        {/* Hymn of the Month */}
+        <div className="mt-4 rounded-3xl overflow-hidden relative aspect-[2/1]">
+          <img
+            src={hymn.image}
+            alt="Landscape"
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-black/40" />
+          <div className="absolute inset-0 p-6 flex flex-col justify-center">
+            <p className="text-sm font-medium text-white/80">
+              Hymn of the Month:
             </p>
-
-            <h3 className="text-xl font-bold mb-4">Reflection Questions</h3>
-            <ul className="list-disc list-inside space-y-4 mb-8">
-              <li>What does this passage reveal about Jesus's character?</li>
-              <li>How can we apply Jesus's example in our own lives?</li>
-              <li>What does this teach us about forgiveness?</li>
-            </ul>
-          </div>
-
-          {/* Hymn of the Month */}
-          <div className="bg-black/50 backdrop-blur-[90px] rounded-[20px] p-8 text-white">
-            <h2 className="text-2xl font-bold mb-4">Hymn of the Month</h2>
-            <h3 className="text-xl mb-2">Amazing Grace</h3>
-            <p className="italic mb-4">by John Newton</p>
-            <div className="space-y-2">
-              <p>Amazing grace! How sweet the sound</p>
-              <p>That saved a wretch like me!</p>
-              <p>I once was lost, but now am found;</p>
-              <p>Was blind, but now I see.</p>
-            </div>
-          </div>
-
-          {/* AI Interaction */}
-          <div className="bg-black/50 backdrop-blur-[90px] rounded-[20px] p-8 text-white">
-            <h2 className="text-2xl font-bold mb-4">Ask for Guidance</h2>
-            <div className="space-y-4">
-              <textarea
-                value={question}
-                onChange={(e) => setQuestion(e.target.value)}
-                placeholder="Ask a question about today's scripture..."
-                className="w-full p-4 rounded-lg bg-white/10 text-white placeholder-gray-400 backdrop-blur-sm"
-                rows={4}
-              />
-              <button className="bg-white text-black px-6 py-3 rounded-lg font-medium">
-                Ask Question
-              </button>
-              {aiResponse && (
-                <div className="mt-4 p-4 rounded-lg bg-white/10 backdrop-blur-sm">
-                  {aiResponse}
-                </div>
-              )}
-            </div>
+            <h2 className="text-2xl font-medium mt-1">{hymn.title}</h2>
           </div>
         </div>
-      </main>
-    </div>
+
+        {/* Scripture Section */}
+        <section>
+          <h2 className="text-lg mb-3">Today's Scripture</h2>
+          <button
+            className="w-full bg-zinc-900/80 rounded-2xl py-4 px-6"
+            onClick={() => setScriptureModalOpen(true)}
+          >
+            <span className="text-xl">
+              {devotionContent?.title || "Loading..."}
+            </span>
+          </button>
+        </section>
+
+        {/* Reflection Questions */}
+        <section>
+          <h2 className="text-lg mb-3">Reflection Questions</h2>
+          <div className="bg-zinc-900/80 rounded-2xl p-6 space-y-6">
+            <div className="space-y-4">
+              {devotionContent?.questions.map((question, index) => (
+                <div key={index} className="flex gap-4">
+                  <span className="text-lg">{index + 1}.</span>
+                  <p className="text-lg flex-1">{question}</p>
+                </div>
+              ))}
+            </div>
+            <button
+              className="w-full bg-white text-black rounded-full py-4 px-6 font-medium flex items-center justify-center gap-2"
+              onClick={() => setJournalModalOpen(true)}
+            >
+              <span>Journal Entry</span>
+              <ArrowRightIcon className="w-5 h-5" />
+            </button>
+          </div>
+        </section>
+
+        {/* AI Chat */}
+        <section>
+          <h2 className="text-lg mb-3">Reflect with AI</h2>
+          <div className="bg-zinc-900/80 rounded-2xl p-4 flex items-center gap-3">
+            <input
+              type="text"
+              placeholder="Ask questions about today's text..."
+              className="flex-1 bg-transparent text-white/60 outline-none"
+            />
+            <button className="p-2 rounded-xl bg-zinc-800">
+              <ArrowRightIcon className="w-5 h-5" />
+            </button>
+          </div>
+        </section>
+
+        {/* Resources */}
+        <section>
+          <button
+            className="w-full bg-zinc-900/80 rounded-2xl p-6 text-left"
+            onClick={() => setResourcesModalOpen(true)}
+          >
+            <div className="relative aspect-[2/1] rounded-xl overflow-hidden mb-4">
+              <img
+                src="/bible-study.jpg"
+                alt="Bible study resources"
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+            </div>
+            <h2 className="text-xl font-medium mb-1">
+              Resources for today's text
+            </h2>
+            <p className="text-white/60">
+              Bible Commentaries, Videos, and Podcasts
+            </p>
+          </button>
+        </section>
+      </div>
+
+      {/* Modals */}
+      <ScriptureModal
+        isOpen={scriptureModalOpen}
+        onClose={() => setScriptureModalOpen(false)}
+        reference={devotionContent?.title || ""}
+      />
+      <JournalModal
+        isOpen={journalModalOpen}
+        onClose={() => setJournalModalOpen(false)}
+        date={params.date}
+        questions={devotionContent?.questions || []}
+      />
+      <ResourcesModal
+        isOpen={resourcesModalOpen}
+        onClose={() => setResourcesModalOpen(false)}
+        reference={devotionContent?.title || ""}
+      />
+    </main>
   );
 }

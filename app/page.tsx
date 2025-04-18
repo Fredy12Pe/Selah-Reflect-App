@@ -2,28 +2,19 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { auth } from "@/lib/firebase";
-import { onAuthStateChanged } from "firebase/auth";
+import { useAuth } from "@/lib/context/AuthContext";
+import { format } from "date-fns";
 
 export default function HomePage() {
   const router = useRouter();
+  const { user, loading } = useAuth();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        router.push("/devotion");
-      } else {
-        router.push("/auth/login");
-      }
-    });
+    if (!loading) {
+      const today = format(new Date(), "yyyy-MM-dd");
+      router.push(`/devotion/${today}`);
+    }
+  }, [loading, router]);
 
-    return () => unsubscribe();
-  }, [router]);
-
-  // Show loading state while checking auth
-  return (
-    <div className="min-h-screen bg-black flex items-center justify-center">
-      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white"></div>
-    </div>
-  );
+  return null;
 }

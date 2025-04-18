@@ -2,13 +2,15 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { auth, signInWithGoogle } from "@/lib/firebase";
+import { getFirebaseAuth, getGoogleAuthProvider } from "@/lib/firebase";
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   updateProfile,
+  signInWithPopup,
 } from "firebase/auth";
 import Image from "next/image";
+import { format } from "date-fns";
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -18,13 +20,38 @@ export default function Auth() {
   const [error, setError] = useState("");
   const router = useRouter();
 
+  const redirectToDevotionPage = () => {
+    const today = format(new Date(), "yyyy-MM-dd");
+    router.push(`/devotion/${today}`);
+  };
+
+  const setSessionAndRedirect = async (user: any) => {
+    try {
+      const token = await user.getIdToken(true);
+      document.cookie = `__session=${token}; path=/; max-age=2592000; SameSite=Strict; Secure`;
+      setTimeout(() => {
+        redirectToDevotionPage();
+      }, 500);
+    } catch (err) {
+      console.error("Error setting session:", err);
+      setError("Failed to complete authentication. Please try again.");
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
+    const auth = getFirebaseAuth();
+    if (!auth) {
+      setError("Authentication not initialized");
+      return;
+    }
+
     try {
       if (isLogin) {
-        await signInWithEmailAndPassword(auth, email, password);
+        const result = await signInWithEmailAndPassword(auth, email, password);
+        await setSessionAndRedirect(result.user);
       } else {
         const { user } = await createUserWithEmailAndPassword(
           auth,
@@ -32,8 +59,8 @@ export default function Auth() {
           password
         );
         await updateProfile(user, { displayName: name });
+        await setSessionAndRedirect(user);
       }
-      router.push("/");
     } catch (err: any) {
       setError(err.message);
     }
@@ -41,8 +68,10 @@ export default function Auth() {
 
   const handleGoogleSignIn = async () => {
     try {
-      await signInWithGoogle();
-      router.push("/");
+      const auth = getFirebaseAuth();
+      const provider = getGoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      await setSessionAndRedirect(result.user);
     } catch (err: any) {
       setError(err.message);
     }
