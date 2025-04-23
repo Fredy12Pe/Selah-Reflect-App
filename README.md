@@ -82,7 +82,7 @@ A mobile-first Christian devotional app built with Next.js, Firebase, and Google
      GEMINI_API_KEY=
 
      # Unsplash API (optional)
-     NEXT_PUBLIC_UNSPLASH_ACCESS_KEY=
+     NEXT_PUBLIC_UNSPLASH_ACCESS_KEY=your_unsplash_api_key_here
      ```
 
 4. **Start the development server**
@@ -135,8 +135,23 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## �� Acknowledgments
+## 📄 Acknowledgments
 
 - Bible verses provided by [bible-api.com](https://bible-api.com/)
 - Images from [Unsplash](https://unsplash.com/)
 - AI powered by [Google Gemini](https://ai.google.dev/)
+
+## Environment Setup
+
+This application requires the following environment variables to be set in a `.env.local` file at the root of the project:
+
+```
+# Unsplash API
+NEXT_PUBLIC_UNSPLASH_ACCESS_KEY=your_unsplash_api_key_here
+```
+
+To use the application:
+
+1. Create a `.env.local` file in the root directory
+2. Add your Unsplash API key as shown above
+3. Run the application with `npm run dev`

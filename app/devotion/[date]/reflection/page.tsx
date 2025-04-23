@@ -15,29 +15,31 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { format, addDays, subDays } from "date-fns";
-import { Outfit } from "next/font/google";
+import {
+  format,
+  addDays,
+  subDays,
+  isFuture,
+  isToday,
+  parseISO,
+} from "date-fns";
 import Link from "next/link";
+import Image from "next/image";
 import { useAuth } from "@/lib/context/AuthContext";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
   ArrowRightIcon,
+  CalendarIcon,
 } from "@heroicons/react/24/outline";
-import ScriptureModal from "@/app/components/modals/ScriptureModal";
-import JournalModal from "@/app/components/modals/JournalModal";
-import ResourcesModal from "@/app/components/modals/ResourcesModal";
-import { parsePDF, DevotionContent } from "@/lib/pdfUtils";
+import { getDevotionByDate } from "@/lib/services/devotionService";
+import { Devotion } from "@/lib/types/devotion";
 import { toast } from "react-hot-toast";
 
-const outfit = Outfit({ subsets: ["latin"] });
-
-// Hymn data - this could be moved to a separate file or database later
-const hymn = {
-  title: "When I survey the Wondrous Cross",
-  image:
-    "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=2000",
-};
+// Unsplash API access key
+const UNSPLASH_ACCESS_KEY = process.env.NEXT_PUBLIC_UNSPLASH_ACCESS_KEY;
 
 export default function ReflectionPage({
   params,
@@ -46,182 +48,256 @@ export default function ReflectionPage({
 }) {
   const router = useRouter();
   const { user } = useAuth();
-  const [scriptureModalOpen, setScriptureModalOpen] = useState(false);
-  const [journalModalOpen, setJournalModalOpen] = useState(false);
-  const [resourcesModalOpen, setResourcesModalOpen] = useState(false);
-  const [devotionContent, setDevotionContent] =
-    useState<DevotionContent | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [devotionData, setDevotionData] = useState<Devotion | null>(null);
+  const currentDate = parseISO(params.date);
+  const today = new Date();
 
-  const date = new Date(params.date);
-  const formattedDate = format(date, "EEEE, MMMM d");
+  // Image states
+  const [hymnImage, setHymnImage] = useState("/hymn-bg.jpg");
+  const [resourcesImage, setResourcesImage] = useState("/resources-bg.jpg");
 
-  useEffect(() => {
-    async function loadDevotionContent() {
-      try {
-        const content = await parsePDF(params.date);
-        setDevotionContent(content);
-      } catch (error) {
-        console.error("Error loading devotion:", error);
-        toast.error("Failed to load devotion content");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    if (user) {
-      loadDevotionContent();
-    }
-  }, [user, params.date]);
-
-  const handleDateChange = (newDate: Date) => {
-    const formattedNewDate = format(newDate, "yyyy-MM-dd");
-    router.push(`/devotion/${formattedNewDate}/reflection`);
+  // Create a date-based parameter to change images daily
+  const getDateBasedParam = (date: string, salt: string = "") => {
+    const dateHash = date
+      .split("")
+      .reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return `${dateHash}${salt}`;
   };
 
-  if (loading) {
+  // Get unique parameters based on current date
+  const hymnParam = getDateBasedParam(params.date, "hymn");
+  const resourceParam = getDateBasedParam(params.date, "resource");
+
+  // Function to check if a devotion exists and load it
+  const checkAndLoadDevotion = async (date: string) => {
+    if (!user) return false;
+    setIsLoading(true);
+    try {
+      const devotion = await getDevotionByDate(date);
+      console.log("Loaded devotion data:", devotion);
+      if (devotion) {
+        setDevotionData(devotion);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error checking devotion:", error);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Load devotion data on mount and when date changes
+  useEffect(() => {
+    console.log("Loading devotion for date:", params.date);
+    checkAndLoadDevotion(params.date);
+  }, [params.date, user]);
+
+  // Function to handle navigation
+  const handleDateChange = async (newDate: Date) => {
+    // Prevent navigation to future dates
+    if (isFuture(newDate)) {
+      toast.error("Cannot view future devotions");
+      return;
+    }
+
+    setIsLoading(true);
+    const formattedDate = format(newDate, "yyyy-MM-dd");
+
+    // Check if devotion exists for the new date
+    const exists = await checkAndLoadDevotion(formattedDate);
+    if (!exists) {
+      toast.error("No devotion available for this date");
+      setIsLoading(false);
+      return;
+    }
+
+    // Navigate to the new date
+    router.push(`/devotion/${formattedDate}/reflection`);
+  };
+
+  // Disable next button if current date is today
+  const isNextDisabled = isToday(currentDate) || isFuture(currentDate);
+
+  // Get the first two questions from all sections
+  const getFirstTwoQuestions = () => {
+    if (!devotionData?.reflectionSections?.length) {
+      console.log("No reflection sections found");
+      return [];
+    }
+
+    const firstSection = devotionData.reflectionSections[0];
+    console.log("First reflection section:", firstSection);
+    return firstSection.questions.slice(0, 2);
+  };
+
+  // Get the current questions
+  const currentQuestions = getFirstTwoQuestions();
+  console.log("Current questions:", currentQuestions);
+
+  if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white mx-auto mb-4"></div>
-          <p className="text-white/80">Loading your reflection...</p>
-        </div>
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        <p>Please sign in to view devotions</p>
       </div>
     );
   }
 
   return (
-    <main
-      className={`${outfit.className} min-h-screen bg-black text-white pb-8`}
-    >
+    <main className="min-h-screen bg-black text-white">
       {/* Date Navigation */}
-      <div className="sticky top-0 z-40 bg-black/80 backdrop-blur-lg px-4 py-3">
-        <div className="flex items-center justify-between">
-          <button
-            className="p-2 rounded-full bg-black/40"
-            onClick={() => handleDateChange(subDays(date, 1))}
-          >
-            <ChevronLeftIcon className="w-6 h-6" />
-          </button>
-          <button className="px-6 py-2 rounded-full bg-zinc-800/80">
-            {formattedDate}
-          </button>
-          <button
-            className="p-2 rounded-full bg-black/40"
-            onClick={() => handleDateChange(addDays(date, 1))}
-          >
-            <ChevronRightIcon className="w-6 h-6" />
-          </button>
-        </div>
+      <div className="relative flex items-center justify-center py-4">
+        <button
+          onClick={() => handleDateChange(subDays(currentDate, 1))}
+          disabled={isLoading}
+          className="absolute left-4 w-10 h-10 flex items-center justify-center rounded-full bg-zinc-800/50
+            hover:bg-zinc-700/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+        >
+          <ChevronLeftIcon className="w-6 h-6" />
+        </button>
+
+        <button
+          onClick={() => setShowCalendar(true)}
+          className="px-8 py-2 rounded-full bg-zinc-800/50 hover:bg-zinc-700/50 transition-all flex items-center gap-2"
+        >
+          <span className="text-lg">{format(currentDate, "EEEE, MMMM d")}</span>
+          <CalendarIcon className="w-5 h-5" />
+        </button>
+
+        {showCalendar && (
+          <div className="absolute top-full mt-2 z-50">
+            <DatePicker
+              selected={currentDate}
+              onChange={(date: Date | null) => {
+                setShowCalendar(false);
+                if (date) handleDateChange(date);
+              }}
+              maxDate={new Date()}
+              inline
+              calendarClassName="bg-zinc-800 border-zinc-700 text-white"
+              dayClassName={(_date: Date) => "hover:bg-zinc-700 rounded-full"}
+            />
+          </div>
+        )}
+
+        <button
+          onClick={() => handleDateChange(addDays(currentDate, 1))}
+          disabled={isNextDisabled || isLoading}
+          className="absolute right-4 w-10 h-10 flex items-center justify-center rounded-full bg-zinc-800/50
+            hover:bg-zinc-700/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+        >
+          <ChevronRightIcon className="w-6 h-6" />
+        </button>
       </div>
 
-      <div className="px-4 space-y-6">
-        {/* Hymn of the Month */}
-        <div className="mt-4 rounded-3xl overflow-hidden relative aspect-[2/1]">
-          <img
-            src={hymn.image}
-            alt="Landscape"
-            className="absolute inset-0 w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-black/40" />
-          <div className="absolute inset-0 p-6 flex flex-col justify-center">
-            <p className="text-sm font-medium text-white/80">
-              Hymn of the Month:
-            </p>
-            <h2 className="text-2xl font-medium mt-1">{hymn.title}</h2>
-          </div>
-        </div>
-
-        {/* Scripture Section */}
-        <section>
-          <h2 className="text-lg mb-3">Today's Scripture</h2>
-          <button
-            className="w-full bg-zinc-900/80 rounded-2xl py-4 px-6"
-            onClick={() => setScriptureModalOpen(true)}
-          >
-            <span className="text-xl">
-              {devotionContent?.title || "Loading..."}
-            </span>
-          </button>
-        </section>
-
-        {/* Reflection Questions */}
-        <section>
-          <h2 className="text-lg mb-3">Reflection Questions</h2>
-          <div className="bg-zinc-900/80 rounded-2xl p-6 space-y-6">
-            <div className="space-y-4">
-              {devotionContent?.questions.map((question, index) => (
-                <div key={index} className="flex gap-4">
-                  <span className="text-lg">{index + 1}.</span>
-                  <p className="text-lg flex-1">{question}</p>
-                </div>
-              ))}
-            </div>
-            <button
-              className="w-full bg-white text-black rounded-full py-4 px-6 font-medium flex items-center justify-center gap-2"
-              onClick={() => setJournalModalOpen(true)}
-            >
-              <span>Journal Entry</span>
-              <ArrowRightIcon className="w-5 h-5" />
-            </button>
-          </div>
-        </section>
-
-        {/* AI Chat */}
-        <section>
-          <h2 className="text-lg mb-3">Reflect with AI</h2>
-          <div className="bg-zinc-900/80 rounded-2xl p-4 flex items-center gap-3">
-            <input
-              type="text"
-              placeholder="Ask questions about today's text..."
-              className="flex-1 bg-transparent text-white/60 outline-none"
-            />
-            <button className="p-2 rounded-xl bg-zinc-800">
-              <ArrowRightIcon className="w-5 h-5" />
-            </button>
-          </div>
-        </section>
-
-        {/* Resources */}
-        <section>
-          <button
-            className="w-full bg-zinc-900/80 rounded-2xl p-6 text-left"
-            onClick={() => setResourcesModalOpen(true)}
-          >
-            <div className="relative aspect-[2/1] rounded-xl overflow-hidden mb-4">
+      <div className="px-4 py-6 space-y-6">
+        {isLoading ? (
+          <div className="text-center py-8">Loading...</div>
+        ) : (
+          <>
+            {/* Hymn of the Month */}
+            <div className="relative overflow-hidden rounded-3xl aspect-[2/1] bg-navy-900">
               <img
-                src="/bible-study.jpg"
-                alt="Bible study resources"
+                src={`https://images.unsplash.com/photo-1445543949571-ffc3e0e2f55e?w=1200&v=${hymnParam}`}
+                alt="Hymn background"
                 className="absolute inset-0 w-full h-full object-cover"
               />
+              <div className="absolute inset-0 bg-gradient-to-b from-blue-900/60 to-black/80" />
+              <div className="relative p-6 flex flex-col justify-end h-full">
+                <p className="text-lg font-medium mb-2">Hymn of the Month:</p>
+                <h2 className="text-3xl font-medium">
+                  When I survey the Wondrous Cross
+                </h2>
+              </div>
             </div>
-            <h2 className="text-xl font-medium mb-1">
-              Resources for today's text
-            </h2>
-            <p className="text-white/60">
-              Bible Commentaries, Videos, and Podcasts
-            </p>
-          </button>
-        </section>
-      </div>
 
-      {/* Modals */}
-      <ScriptureModal
-        isOpen={scriptureModalOpen}
-        onClose={() => setScriptureModalOpen(false)}
-        reference={devotionContent?.title || ""}
-      />
-      <JournalModal
-        isOpen={journalModalOpen}
-        onClose={() => setJournalModalOpen(false)}
-        date={params.date}
-        questions={devotionContent?.questions || []}
-      />
-      <ResourcesModal
-        isOpen={resourcesModalOpen}
-        onClose={() => setResourcesModalOpen(false)}
-        reference={devotionContent?.title || ""}
-      />
+            {/* Today's Scripture */}
+            <div>
+              <h3 className="text-xl mb-3">Today's Scripture</h3>
+              <div className="p-6 rounded-2xl bg-zinc-900/80">
+                <p className="text-2xl font-medium">
+                  {devotionData?.bibleText || "No scripture available"}
+                </p>
+              </div>
+            </div>
+
+            {/* Reflection Questions */}
+            <div>
+              <h3 className="text-xl mb-3">Reflection Questions</h3>
+              <div className="p-6 rounded-2xl bg-zinc-900/80 space-y-8">
+                <div className="space-y-6">
+                  {currentQuestions.length > 0 ? (
+                    currentQuestions.map((question, index) => (
+                      <div key={index}>
+                        <p className="text-lg">
+                          {index + 1}. {question}
+                        </p>
+                      </div>
+                    ))
+                  ) : (
+                    <>
+                      <div>
+                        <p className="text-lg">1.</p>
+                      </div>
+                      <div>
+                        <p className="text-lg">2.</p>
+                      </div>
+                    </>
+                  )}
+                </div>
+                <Link
+                  href={`/devotion/${params.date}/journal`}
+                  className="inline-flex items-center px-6 py-3 bg-white text-black rounded-full font-medium"
+                >
+                  Journal Entry
+                  <ArrowRightIcon className="w-5 h-5 ml-2" />
+                </Link>
+              </div>
+            </div>
+
+            {/* Reflect with AI */}
+            <div>
+              <h3 className="text-xl mb-3">Reflect with AI</h3>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Ask questions about today's text..."
+                  className="flex-1 px-6 py-4 rounded-2xl bg-zinc-900/80 text-white placeholder-gray-400"
+                />
+                <button className="p-4 rounded-2xl bg-zinc-900/80 hover:bg-zinc-700/80 transition-all">
+                  <ArrowRightIcon className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+
+            {/* Resources */}
+            <Link href="#" className="block">
+              <div
+                className="relative overflow-hidden rounded-2xl"
+                style={{ height: "150px" }}
+              >
+                <img
+                  src={`https://images.unsplash.com/photo-1504052434569-70ad5836ab65?w=1200&v=${resourceParam}`}
+                  alt="Bible study resources"
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-br from-black/70 via-purple-900/70 to-black/80" />
+                <div className="relative p-6">
+                  <h3 className="text-2xl font-semibold mb-2">
+                    Resources for today's text
+                  </h3>
+                  <p className="text-gray-300">
+                    Bible Commentaries, Videos, and Podcasts
+                  </p>
+                </div>
+              </div>
+            </Link>
+          </>
+        )}
+      </div>
     </main>
   );
 }
