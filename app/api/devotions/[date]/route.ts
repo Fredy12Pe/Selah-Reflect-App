@@ -51,6 +51,7 @@ export async function GET(
     const db = getFirestore();
     const devotionDoc = await db.collection('devotions').doc(params.date).get();
 
+    console.log('Devotions API: Document exists:', devotionDoc.exists);
     if (!devotionDoc.exists) {
       console.log('Devotions API: No devotion found for date:', params.date);
       return NextResponse.json(
@@ -59,14 +60,27 @@ export async function GET(
       );
     }
 
-    console.log('Devotions API: Devotion found, returning data');
+    const data = devotionDoc.data();
+    console.log('Devotions API: Retrieved data:', {
+      id: devotionDoc.id,
+      type: data?.type,
+      hasContent: !!data?.content,
+      hasQuestions: Array.isArray(data?.reflectionQuestions),
+      questionCount: Array.isArray(data?.reflectionQuestions) ? data?.reflectionQuestions.length : 0,
+    });
+
     return NextResponse.json({
       id: devotionDoc.id,
-      ...devotionDoc.data()
+      ...data
     });
 
   } catch (error: any) {
     console.error('Devotions API: Error processing request:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+    });
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

@@ -1,31 +1,35 @@
 export interface ReflectionQuestion {
-  reference: string;
+  reference?: string;
   question: string;
 }
 
 export interface Devotion {
-  type: "devotion" | "commentary";
-  title?: string;
-  bibleText: string;
+  id?: string;
+  type?: 'devotion' | 'commentary';
+  date: string;
+  title: string;
+  bibleText?: string;
+  scriptureReference?: string;
+  scriptureText?: string;
   content?: string;
-  reflectionQuestions: ReflectionQuestion[];
+  prayer?: string;
+  reflectionQuestions?: ReflectionQuestion[];
 }
 
-export interface DevotionInput extends Devotion {
+export interface DevotionInput extends Omit<Devotion, 'id'> {
   date: string;
 }
 
 export interface Hymn {
-  hymnTitle: string;
-  author: string;
-  composer: string;
-  lyrics: string;
+  title: string;
+  lyrics: string[];
+  author?: string;
+  year?: number;
 }
 
 export interface Meta {
-  hymns: {
-    [month: string]: Hymn;
-  };
+  lastUpdated: string;
+  totalDevotions: number;
 }
 
 export interface DevotionData {

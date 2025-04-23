@@ -18,7 +18,7 @@ import { useRouter } from "next/navigation";
 import { format, addDays, subDays } from "date-fns";
 import { Outfit } from "next/font/google";
 import Link from "next/link";
-import { useAuth } from "@/app/context/AuthContext";
+import { useAuth } from "@/lib/context/AuthContext";
 import {
   ChevronLeftIcon,
   ChevronRightIcon,

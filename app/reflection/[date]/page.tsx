@@ -4,22 +4,28 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Inter } from "next/font/google";
-import { useAuth } from "@/app/context/AuthContext";
+import { useAuth } from "@/lib/context/AuthContext";
+import { getFirebaseDb } from "@/lib/firebase/firebase";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import { toast, Toaster } from "react-hot-toast";
 
 const inter = Inter({ subsets: ["latin"] });
 
-// This would come from your backend in a real app
-const reflection = {
-  title: "Today's Reflection",
-  questions: [
-    "What does Jesus' response to the women tell us about His character and priorities, even in His moment of suffering?",
-    "How does this passage challenge our perspective on what we should truly mourn for or be concerned about?",
-    "In what ways might God be calling you to look beyond immediate circumstances to see deeper spiritual realities?",
-  ],
-  prayer:
-    "Lord Jesus, help me to see beyond my immediate circumstances and understand Your heart for the world. Give me wisdom to discern what truly matters in light of eternity. Amen.",
-};
+interface DevotionData {
+  date: string;
+  title: string;
+  scriptureReference: string;
+  scriptureText: string;
+  content: string;
+  prayer: string;
+  reflectionQuestions: string[];
+}
+
+interface ReflectionAnswer {
+  questionId: number;
+  answer: string;
+  timestamp: number;
+}
 
 export default function ReflectionPage({
   params,
@@ -27,33 +33,109 @@ export default function ReflectionPage({
   params: { date: string };
 }) {
   const router = useRouter();
-  const { user, loading, error } = useAuth();
-  const [answers, setAnswers] = useState<string[]>(
-    Array(reflection.questions.length).fill("")
-  );
-
-  useEffect(() => {
-    if (error) {
-      toast.error(`Authentication error: ${error}`);
-    }
-  }, [error]);
+  const { user, loading } = useAuth();
+  const [devotion, setDevotion] = useState<DevotionData | null>(null);
+  const [answers, setAnswers] = useState<string[]>([]);
+  const [pageLoading, setPageLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
       console.log("No user found, redirecting to login");
       const currentPath = window.location.pathname;
       router.push(`/auth/login?from=${encodeURIComponent(currentPath)}`);
+      return;
     }
-  }, [loading, user, router]);
 
-  const handleAnswerChange = (index: number, value: string) => {
+    const fetchData = async () => {
+      try {
+        const db = getFirebaseDb();
+
+        // Fetch devotion
+        const devotionRef = doc(db, "devotions", params.date);
+        const devotionSnap = await getDoc(devotionRef);
+
+        if (devotionSnap.exists()) {
+          const devotionData = devotionSnap.data() as DevotionData;
+          setDevotion(devotionData);
+          setAnswers(Array(devotionData.reflectionQuestions.length).fill(""));
+
+          // Fetch user's previous answers if they exist
+          if (user) {
+            const answersRef = doc(
+              db,
+              `users/${user.uid}/reflections/${params.date}`
+            );
+            const answersSnap = await getDoc(answersRef);
+
+            if (answersSnap.exists()) {
+              const userAnswers = answersSnap.data()
+                .answers as ReflectionAnswer[];
+              const sortedAnswers = userAnswers
+                .sort((a, b) => a.questionId - b.questionId)
+                .map((a) => a.answer);
+              setAnswers(sortedAnswers);
+            }
+          }
+        } else {
+          toast.error("Devotion not found");
+          router.push("/");
+        }
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        toast.error("Failed to load reflection");
+      } finally {
+        setPageLoading(false);
+      }
+    };
+
+    if (user) {
+      fetchData();
+    }
+  }, [params.date, user, loading, router]);
+
+  const handleAnswerChange = async (index: number, value: string) => {
     const newAnswers = [...answers];
     newAnswers[index] = value;
     setAnswers(newAnswers);
-    // Here you could add auto-save functionality to save to Firebase
+
+    // Auto-save after 1 second of no typing
+    if (user && devotion) {
+      setSaving(true);
+      try {
+        const db = getFirebaseDb();
+        const answersRef = doc(
+          db,
+          `users/${user.uid}/reflections/${params.date}`
+        );
+
+        const formattedAnswers: ReflectionAnswer[] = newAnswers.map(
+          (answer, idx) => ({
+            questionId: idx,
+            answer,
+            timestamp: Date.now(),
+          })
+        );
+
+        await setDoc(
+          answersRef,
+          {
+            date: params.date,
+            answers: formattedAnswers,
+            lastUpdated: Date.now(),
+          },
+          { merge: true }
+        );
+      } catch (error) {
+        console.error("Error saving answer:", error);
+        toast.error("Failed to save your answer");
+      } finally {
+        setSaving(false);
+      }
+    }
   };
 
-  if (loading) {
+  if (loading || pageLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-black space-y-4">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white"></div>
@@ -62,8 +144,8 @@ export default function ReflectionPage({
     );
   }
 
-  if (!user) {
-    return null; // The useEffect will handle the redirect
+  if (!user || !devotion) {
+    return null;
   }
 
   return (
@@ -110,12 +192,12 @@ export default function ReflectionPage({
         {/* Main Content */}
         <div className="px-6 py-20 max-w-2xl mx-auto space-y-12">
           <h1 className="text-4xl font-bold text-white text-center">
-            {reflection.title}
+            Today's Reflection
           </h1>
 
           {/* Questions */}
           <div className="space-y-8">
-            {reflection.questions.map((question, index) => (
+            {devotion.reflectionQuestions.map((question, index) => (
               <div key={index} className="space-y-4">
                 <h2 className="text-xl font-semibold text-white">
                   Question {index + 1}
@@ -123,16 +205,23 @@ export default function ReflectionPage({
                 <p className="text-white/90 text-lg leading-relaxed">
                   {question}
                 </p>
-                <textarea
-                  value={answers[index]}
-                  onChange={(e) => handleAnswerChange(index, e.target.value)}
-                  className="w-full p-4 rounded-xl bg-white/10 border border-white/20
-                    text-white placeholder-white/50 resize-none
-                    focus:outline-none focus:ring-2 focus:ring-white/30
-                    transition-all duration-300"
-                  rows={4}
-                  placeholder="Write your reflection here..."
-                />
+                <div className="relative">
+                  <textarea
+                    value={answers[index]}
+                    onChange={(e) => handleAnswerChange(index, e.target.value)}
+                    className="w-full p-4 rounded-xl bg-white/10 border border-white/20
+                      text-white placeholder-white/50 resize-none
+                      focus:outline-none focus:ring-2 focus:ring-white/30
+                      transition-all duration-300"
+                    rows={4}
+                    placeholder="Write your reflection here..."
+                  />
+                  {saving && (
+                    <div className="absolute right-2 top-2 text-white/50 text-sm">
+                      Saving...
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -141,7 +230,7 @@ export default function ReflectionPage({
           <div className="space-y-4 border-t border-white/20 pt-8">
             <h2 className="text-2xl font-bold text-white">Today's Prayer</h2>
             <p className="text-white/90 text-lg italic leading-relaxed">
-              {reflection.prayer}
+              {devotion.prayer}
             </p>
           </div>
         </div>

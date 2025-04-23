@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/context/AuthContext";
 import { getDevotionByDate } from "@/lib/services/devotionService";
-import { Devotion } from "@/lib/types/devotion";
+import { Devotion, ReflectionQuestion } from "@/lib/types/devotion";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
 
 interface DevotionPageClientProps {
@@ -123,11 +123,11 @@ export default function DevotionPageClient({ date }: DevotionPageClientProps) {
         <div className="relative z-10 container mx-auto px-4 py-12 text-white">
           <div className="max-w-3xl mx-auto space-y-8">
             <h1 className="text-4xl font-bold">{devotion.title}</h1>
-            <div className="prose prose-lg prose-invert">
-              <div
-                dangerouslySetInnerHTML={{ __html: devotion.content || "" }}
-              />
-            </div>
+            {devotion.content && (
+              <div className="prose prose-lg prose-invert">
+                <div dangerouslySetInnerHTML={{ __html: devotion.content }} />
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -140,10 +140,12 @@ export default function DevotionPageClient({ date }: DevotionPageClientProps) {
       style={{ backgroundImage: "url(/images/background.jpg)" }}
     >
       <div className="absolute inset-0 bg-gradient-to-b from-black/60 to-black/40" />
-      <div className="relative z-10 container mx-auto px-4 py-12 text-white">
-        <div className="max-w-3xl mx-auto space-y-8">
-          <div className="space-y-4">
-            <h2 className="text-2xl font-semibold">{devotion.bibleText}</h2>
+      <div className="relative z-10 container mx-auto px-4 py-32 text-white">
+        <div className="max-w-3xl mx-auto space-y-16">
+          <div className="space-y-8">
+            <h2 className="text-2xl font-semibold">
+              {devotion.bibleText || devotion.scriptureReference}
+            </h2>
           </div>
 
           {devotion.content && (
@@ -157,16 +159,18 @@ export default function DevotionPageClient({ date }: DevotionPageClientProps) {
               <div className="space-y-4">
                 <h2 className="text-2xl font-semibold">Reflection Questions</h2>
                 <ul className="space-y-4">
-                  {devotion.reflectionQuestions.map((q, index) => (
-                    <li key={index} className="bg-black/20 p-6 rounded-lg">
-                      {q.reference && (
-                        <p className="text-sm text-white/70 mb-2">
-                          {q.reference}
-                        </p>
-                      )}
-                      <p className="text-lg">{q.question}</p>
-                    </li>
-                  ))}
+                  {devotion.reflectionQuestions.map(
+                    (q: ReflectionQuestion, index) => (
+                      <li key={index} className="bg-black/20 p-6 rounded-lg">
+                        {q.reference && (
+                          <p className="text-sm text-white/70 mb-2">
+                            {q.reference}
+                          </p>
+                        )}
+                        <p className="text-lg">{q.question}</p>
+                      </li>
+                    )
+                  )}
                 </ul>
               </div>
             )}

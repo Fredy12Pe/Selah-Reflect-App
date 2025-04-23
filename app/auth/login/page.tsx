@@ -62,12 +62,13 @@ export default function LoginPage() {
 
       console.log("Session verified, redirecting...");
 
-      // Get the redirect path from URL params or default to today's devotion
+      // Get the redirect path from URL params or default to a date we know has data
       const from = searchParams.get("from");
       if (from) {
         router.push(from);
       } else {
-        router.push("/devotion/2025-04-18");
+        // We know this date has data from our import
+        router.push("/devotion/2025-04-01");
       }
       router.refresh();
     } catch (error: any) {

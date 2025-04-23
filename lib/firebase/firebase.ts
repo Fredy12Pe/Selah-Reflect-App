@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, browserLocalPersistence, setPersistence, onAuthStateChanged, User } from 'firebase/auth';
 import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
+import { checkFirebaseConfig } from './checkConfig';
 
 // Log environment variables (without exposing sensitive values)
 console.log('Firebase Config Environment Variables Present:', {
@@ -12,7 +13,8 @@ console.log('Firebase Config Environment Variables Present:', {
   appId: !!process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 });
 
-const firebaseConfig = {
+// Add firebaseConfig export after the environment variable logging
+export const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
@@ -21,10 +23,31 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase only on the client side
 let app;
 let auth;
 let db;
+
+export function getFirebaseApp() {
+  const { hasIssues, issues, config } = checkFirebaseConfig();
+  
+  if (hasIssues) {
+    console.error('Firebase configuration issues detected:');
+    issues.forEach(issue => console.error('- ' + issue));
+    console.error('Configuration status:', config);
+    throw new Error('Invalid Firebase configuration');
+  }
+
+  if (!app) {
+    try {
+      app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+      console.log('Firebase app initialized successfully');
+    } catch (error) {
+      console.error('Error initializing Firebase app:', error);
+      throw error;
+    }
+  }
+  return app;
+}
 
 const initializeFirebase = async () => {
   if (typeof window === 'undefined') {
@@ -110,37 +133,31 @@ if (typeof window !== 'undefined') {
 }
 
 export function getFirebaseAuth() {
-  if (typeof window === 'undefined') {
-    console.log('Firebase: Attempted to get auth on server side');
-    return null;
+  const app = getFirebaseApp();
+  try {
+    const auth = getAuth(app);
+    console.log('Firebase auth initialized successfully');
+    return auth;
+  } catch (error) {
+    console.error('Error initializing Firebase auth:', error);
+    throw error;
   }
-  
-  if (!auth) {
-    console.log('Firebase: Auth not initialized, attempting initialization');
-    initializeFirebase().catch(error => {
-      console.error('Firebase: Failed to initialize when getting auth:', error);
-    });
-  } else {
-    console.log('Firebase: Returning existing auth instance');
-  }
-  
-  return auth;
 }
 
 export function getFirebaseDb() {
-  if (typeof window === 'undefined') {
-    console.log('Firebase: Attempted to get Firestore on server side');
-    return null;
-  }
-  
   if (!db) {
-    console.log('Firebase: Firestore not initialized, attempting initialization');
-    initializeFirebase().catch(error => {
-      console.error('Firebase: Failed to initialize when getting Firestore:', error);
-    });
-  } else {
-    console.log('Firebase: Returning existing Firestore instance');
+    const app = getFirebaseApp();
+    try {
+      db = initializeFirestore(app, {
+        localCache: persistentLocalCache({
+          tabManager: persistentMultipleTabManager()
+        })
+      });
+      console.log('Firestore initialized successfully with persistence');
+    } catch (error) {
+      console.error('Error initializing Firestore:', error);
+      throw error;
+    }
   }
-  
   return db;
 } 
