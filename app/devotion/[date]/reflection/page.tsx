@@ -64,6 +64,9 @@ export default function ReflectionPage({
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
 
+  // Hymn modal state
+  const [showHymnModal, setShowHymnModal] = useState(false);
+
   // Create a date-based parameter to change images daily
   const getDateBasedParam = (date: string, salt: string = "") => {
     const dateHash = date
@@ -75,6 +78,46 @@ export default function ReflectionPage({
   // Get unique parameters based on current date
   const hymnParam = getDateBasedParam(params.date, "hymn");
   const resourceParam = getDateBasedParam(params.date, "resource");
+
+  // Lyrics for "When I Survey the Wondrous Cross"
+  const hymnLyrics = [
+    {
+      verse: 1,
+      lines: [
+        "When I survey the wondrous cross",
+        "On which the Prince of glory died,",
+        "My richest gain I count but loss,",
+        "And pour contempt on all my pride.",
+      ],
+    },
+    {
+      verse: 2,
+      lines: [
+        "Forbid it, Lord, that I should boast,",
+        "Save in the death of Christ my God!",
+        "All the vain things that charm me most,",
+        "I sacrifice them to His blood.",
+      ],
+    },
+    {
+      verse: 3,
+      lines: [
+        "See from His head, His hands, His feet,",
+        "Sorrow and love flow mingled down!",
+        "Did e'er such love and sorrow meet,",
+        "Or thorns compose so rich a crown?",
+      ],
+    },
+    {
+      verse: 4,
+      lines: [
+        "Were the whole realm of nature mine,",
+        "That were a present far too small;",
+        "Love so amazing, so divine,",
+        "Demands my soul, my life, my all.",
+      ],
+    },
+  ];
 
   // Function to check if a devotion exists and load it
   const checkAndLoadDevotion = async (date: string) => {
@@ -250,7 +293,10 @@ export default function ReflectionPage({
         ) : (
           <>
             {/* Hymn of the Month */}
-            <div className="relative overflow-hidden rounded-3xl aspect-[2/1] bg-navy-900">
+            <div
+              className="relative overflow-hidden rounded-3xl aspect-[2/1] bg-navy-900 cursor-pointer"
+              onClick={() => setShowHymnModal(true)}
+            >
               <img
                 src={`https://images.unsplash.com/photo-1445543949571-ffc3e0e2f55e?w=1200&v=${hymnParam}`}
                 alt="Hymn background"
@@ -375,6 +421,63 @@ export default function ReflectionPage({
           </>
         )}
       </div>
+
+      {/* Hymn Lyrics Modal */}
+      {showHymnModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 animate-fadein">
+          <div className="w-full max-w-lg bg-zinc-900 rounded-t-2xl p-6 max-h-[80vh] overflow-y-auto animate-slidein">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold">
+                When I Survey the Wondrous Cross
+              </h2>
+              <button
+                onClick={() => setShowHymnModal(false)}
+                className="p-2 text-white hover:text-gray-300"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-6 w-6"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              <p className="text-gray-400 italic">By Isaac Watts, 1707</p>
+
+              {hymnLyrics.map((verse) => (
+                <div key={verse.verse} className="space-y-1.5">
+                  <p className="text-gray-400 font-medium">
+                    Verse {verse.verse}
+                  </p>
+                  {verse.lines.map((line, i) => (
+                    <p key={i} className="text-white">
+                      {line}
+                    </p>
+                  ))}
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-8 border-t border-zinc-700 pt-4">
+              <p className="text-gray-400 text-sm">
+                This hymn reminds us of Christ's sacrifice and calls us to
+                respond with total dedication. It's one of the most powerful and
+                beloved hymns in Christian worship.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
