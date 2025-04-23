@@ -58,6 +58,12 @@ export default function ReflectionPage({
   const [hymnImage, setHymnImage] = useState("/hymn-bg.jpg");
   const [resourcesImage, setResourcesImage] = useState("/resources-bg.jpg");
 
+  // AI reflection states
+  const [question, setQuestion] = useState("");
+  const [aiReflection, setAiReflection] = useState("");
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [aiError, setAiError] = useState("");
+
   // Create a date-based parameter to change images daily
   const getDateBasedParam = (date: string, salt: string = "") => {
     const dateHash = date
@@ -137,6 +143,51 @@ export default function ReflectionPage({
   // Get the current questions
   const currentQuestions = getFirstTwoQuestions();
   console.log("Current questions:", currentQuestions);
+
+  // Function to handle AI reflection generation
+  const handleReflectionGeneration = async () => {
+    if (!question.trim() || !devotionData?.bibleText) return;
+
+    setIsAiLoading(true);
+    setAiError("");
+
+    try {
+      const response = await fetch("/api/reflection", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          verse: devotionData.bibleText,
+          question: question.trim(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to generate reflection");
+      }
+
+      setAiReflection(data.reflection);
+    } catch (error) {
+      console.error("Error generating AI reflection:", error);
+      setAiError(
+        error instanceof Error
+          ? error.message
+          : "Something went wrong. Please try again."
+      );
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  // Handle key press in reflection input
+  const handleReflectionKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleReflectionGeneration();
+    }
+  };
 
   if (!user) {
     return (
@@ -261,16 +312,42 @@ export default function ReflectionPage({
             {/* Reflect with AI */}
             <div>
               <h3 className="text-xl mb-3">Reflect with AI</h3>
-              <div className="flex gap-2">
+              <div className="flex gap-2 mb-4">
                 <input
                   type="text"
                   placeholder="Ask questions about today's text..."
                   className="flex-1 px-6 py-4 rounded-2xl bg-zinc-900/80 text-white placeholder-gray-400"
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  onKeyPress={handleReflectionKeyPress}
+                  disabled={isAiLoading}
                 />
-                <button className="p-4 rounded-2xl bg-zinc-900/80 hover:bg-zinc-700/80 transition-all">
-                  <ArrowRightIcon className="w-6 h-6" />
+                <button
+                  className="p-4 rounded-2xl bg-zinc-900/80 hover:bg-zinc-700/80 transition-all disabled:opacity-50"
+                  onClick={handleReflectionGeneration}
+                  disabled={
+                    isAiLoading || !question.trim() || !devotionData?.bibleText
+                  }
+                >
+                  {isAiLoading ? (
+                    <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <ArrowRightIcon className="w-6 h-6" />
+                  )}
                 </button>
               </div>
+
+              {aiError && (
+                <div className="text-red-400 mb-4 px-4 py-2 bg-red-900/30 rounded-lg">
+                  {aiError}
+                </div>
+              )}
+
+              {aiReflection && (
+                <div className="p-6 rounded-2xl bg-zinc-900/80 mb-6">
+                  <p className="text-lg whitespace-pre-wrap">{aiReflection}</p>
+                </div>
+              )}
             </div>
 
             {/* Resources */}

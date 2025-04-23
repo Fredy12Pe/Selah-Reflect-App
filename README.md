@@ -71,18 +71,24 @@ A mobile-first Christian devotional app built with Next.js, Firebase, and Google
 
      ```env
      # Firebase Configuration
-     NEXT_PUBLIC_FIREBASE_API_KEY=
-     FIREBASE_AUTH_DOMAIN=
-     FIREBASE_PROJECT_ID=
-     FIREBASE_STORAGE_BUCKET=
-     FIREBASE_MESSAGING_SENDER_ID=
-     FIREBASE_APP_ID=
+     NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key
+     FIREBASE_AUTH_DOMAIN=your_firebase_auth_domain
+     FIREBASE_PROJECT_ID=your_firebase_project_id
+     FIREBASE_STORAGE_BUCKET=your_firebase_storage_bucket
+     FIREBASE_MESSAGING_SENDER_ID=your_firebase_messaging_sender_id
+     FIREBASE_APP_ID=your_firebase_app_id
 
      # Google Gemini API
-     GEMINI_API_KEY=
+     NEXT_PUBLIC_GEMINI_API_KEY=your_gemini_api_key
 
      # Unsplash API (optional)
      NEXT_PUBLIC_UNSPLASH_ACCESS_KEY=your_unsplash_api_key_here
+
+     # Bible API
+     NEXT_PUBLIC_BIBLE_API_KEY=your_bible_api_key
+
+     # OpenAI API
+     NEXT_PUBLIC_OPENAI_API_KEY=your_openai_api_key_here
      ```
 
 4. **Start the development server**
@@ -146,12 +152,35 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 This application requires the following environment variables to be set in a `.env.local` file at the root of the project:
 
 ```
+# Firebase Configuration
+NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key
+FIREBASE_AUTH_DOMAIN=your_firebase_auth_domain
+FIREBASE_PROJECT_ID=your_firebase_project_id
+FIREBASE_STORAGE_BUCKET=your_firebase_storage_bucket
+FIREBASE_MESSAGING_SENDER_ID=your_firebase_messaging_sender_id
+FIREBASE_APP_ID=your_firebase_app_id
+
+# Bible API
+NEXT_PUBLIC_BIBLE_API_KEY=your_bible_api_key
+
+# Google Gemini API
+NEXT_PUBLIC_GEMINI_API_KEY=your_gemini_api_key
+
 # Unsplash API
 NEXT_PUBLIC_UNSPLASH_ACCESS_KEY=your_unsplash_api_key_here
+
+# OpenAI API
+NEXT_PUBLIC_OPENAI_API_KEY=your_openai_api_key_here
 ```
 
 To use the application:
 
 1. Create a `.env.local` file in the root directory
-2. Add your Unsplash API key as shown above
+2. Add your API keys as shown above
 3. Run the application with `npm run dev`
+
+### Getting API Keys
+
+- **OpenAI API Key**: Sign up at [OpenAI Platform](https://platform.openai.com/) to get your API key for the Reflect with AI feature.
+- **Unsplash API Key**: Sign up at [Unsplash Developers](https://unsplash.com/developers) to get your API key for background images.
+- **Firebase**: Set up a project in the [Firebase Console](https://console.firebase.google.com/).
