@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { toast, Toaster } from "react-hot-toast";
-import { useAuth } from "@/app/context/AuthContext";
+import { useAuth } from "@/lib/context/AuthContext";
 import { createOrUpdateDevotion } from "@/lib/services/devotionService";
 import { DevotionInput } from "@/lib/types/devotion";
 
