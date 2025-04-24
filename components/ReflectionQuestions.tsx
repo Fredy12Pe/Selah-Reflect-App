@@ -22,7 +22,7 @@ export default function ReflectionQuestions({
       </ol>
 
       <Link
-        href={`/journal/${date}`}
+        href={`/devotion/${date}/journal`}
         className="inline-flex items-center px-6 py-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
       >
         Journal Entry

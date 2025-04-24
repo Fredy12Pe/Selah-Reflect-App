@@ -44,10 +44,30 @@ body {
   to { transform: translateY(0); }
 }
 
+/* Animation for modal fade out */
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* Animation for modal slide down */
+@keyframes slideDown {
+  from { transform: translateY(0); }
+  to { transform: translateY(100%); }
+}
+
 .animate-fadein {
   animation: fadeIn 0.3s ease-out forwards;
 }
 
 .animate-slidein {
   animation: slideUp 0.3s ease-out forwards;
+}
+
+.animate-fadeout {
+  animation: fadeOut 0.3s ease-out forwards;
+}
+
+.animate-slideout {
+  animation: slideDown 0.3s ease-out forwards;
 } 

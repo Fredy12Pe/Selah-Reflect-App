@@ -3,13 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Inter } from "next/font/google";
 import { useAuth } from "@/lib/context/AuthContext";
 import { getFirebaseDb } from "@/lib/firebase/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { toast, Toaster } from "react-hot-toast";
-
-const inter = Inter({ subsets: ["latin"] });
 
 interface DevotionData {
   date: string;
@@ -19,6 +16,7 @@ interface DevotionData {
   content: string;
   prayer: string;
   reflectionQuestions: string[];
+  bibleText?: string; // For API compatibility with new format
 }
 
 interface BibleVerse {
@@ -71,6 +69,7 @@ export default function DevotionPage({ params }: { params: { date: string } }) {
 
     const fetchBibleVerse = async (reference: string) => {
       try {
+        console.log("Fetching Bible verse for reference:", reference);
         const response = await fetch(
           `https://bible-api.com/${encodeURIComponent(
             reference
@@ -82,6 +81,7 @@ export default function DevotionPage({ params }: { params: { date: string } }) {
         }
 
         const data = await response.json();
+        console.log("Bible API response:", data);
 
         if (!data.verses || data.verses.length === 0) {
           console.error("No verses found for reference:", reference);
@@ -113,12 +113,27 @@ export default function DevotionPage({ params }: { params: { date: string } }) {
 
         if (devotionSnap.exists()) {
           const devotionData = devotionSnap.data() as DevotionData;
+          console.log("Devotion data from Firestore:", devotionData);
           setDevotion(devotionData);
 
-          // Fetch Bible verse
-          const verse = await fetchBibleVerse(devotionData.scriptureReference);
-          if (verse) {
-            setBibleVerse(verse);
+          // Try fetching Bible verse using bibleText field first (new format)
+          // Fall back to scriptureReference for backward compatibility
+          const reference =
+            devotionData.bibleText || devotionData.scriptureReference;
+          if (reference) {
+            console.log("Using reference for Bible API:", reference);
+            const verse = await fetchBibleVerse(reference);
+            if (verse) {
+              setBibleVerse(verse);
+              console.log("Successfully loaded Bible verse:", verse.reference);
+            } else {
+              console.error(
+                "Failed to fetch Bible verse for reference:",
+                reference
+              );
+            }
+          } else {
+            console.warn("No Bible reference found in devotion data");
           }
         } else {
           console.log("No devotion found for date:", params.date);
@@ -159,10 +174,11 @@ export default function DevotionPage({ params }: { params: { date: string } }) {
 
   const firstName = user?.displayName?.split(" ")[0] || "";
 
+  // For debugging
+  console.log("Bible verse state:", bibleVerse);
+
   return (
-    <div
-      className={`h-screen flex flex-col overflow-hidden ${inter.className}`}
-    >
+    <div className={`h-screen flex flex-col overflow-hidden`}>
       <Toaster position="top-center" />
 
       {/* Background Image */}
@@ -201,7 +217,9 @@ export default function DevotionPage({ params }: { params: { date: string } }) {
           <div className="max-w-lg mx-auto w-full p-8 flex flex-col min-h-0">
             {/* Scripture Reference - Fixed */}
             <h2 className="text-2xl font-bold text-white flex-none mb-6">
-              {bibleVerse?.reference || devotion.scriptureReference}
+              {bibleVerse?.reference ||
+                devotion.bibleText ||
+                devotion.scriptureReference}
             </h2>
 
             {/* Scripture Text - Scrollable */}
@@ -224,7 +242,7 @@ export default function DevotionPage({ params }: { params: { date: string } }) {
                   ))
                 ) : (
                   <p className="text-lg leading-relaxed text-white/90">
-                    {devotion.scriptureText}
+                    {devotion.scriptureText || "Loading scripture text..."}
                   </p>
                 )}
               </div>
@@ -232,7 +250,7 @@ export default function DevotionPage({ params }: { params: { date: string } }) {
 
             {/* Reflection Button - Fixed */}
             <button
-              onClick={() => router.push(`/reflection/${params.date}`)}
+              onClick={() => router.push(`/devotion/${params.date}/reflection`)}
               className="w-full bg-white/10 hover:bg-white/20 text-white 
                 rounded-full py-4 px-6 font-medium transition-all flex items-center 
                 justify-between flex-none"

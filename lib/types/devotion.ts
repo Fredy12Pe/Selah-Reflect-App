@@ -1,19 +1,13 @@
-export interface ReflectionQuestion {
-  reference?: string;
-  question: string;
+export interface ReflectionSection {
+  passage: string;
+  questions: string[];
 }
 
 export interface Devotion {
   id?: string;
-  type?: 'devotion' | 'commentary';
   date: string;
-  title: string;
-  bibleText?: string;
-  scriptureReference?: string;
-  scriptureText?: string;
-  content?: string;
-  prayer?: string;
-  reflectionQuestions?: ReflectionQuestion[];
+  bibleText: string;
+  reflectionSections: ReflectionSection[];
 }
 
 export interface DevotionInput extends Omit<Devotion, 'id'> {
@@ -30,6 +24,7 @@ export interface Hymn {
 export interface Meta {
   lastUpdated: string;
   totalDevotions: number;
+  currentHymn: Hymn;
 }
 
 export interface DevotionData {

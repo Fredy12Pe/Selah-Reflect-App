@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import { initAdmin } from '@/lib/firebase/admin';
+import { Devotion } from '@/lib/types/devotion';
 
 export async function GET(
   request: NextRequest,
@@ -60,19 +61,25 @@ export async function GET(
       );
     }
 
-    const data = devotionDoc.data();
+    const data = devotionDoc.data() as Devotion;
     console.log('Devotions API: Retrieved data:', {
       id: devotionDoc.id,
-      type: data?.type,
-      hasContent: !!data?.content,
-      hasQuestions: Array.isArray(data?.reflectionQuestions),
-      questionCount: Array.isArray(data?.reflectionQuestions) ? data?.reflectionQuestions.length : 0,
+      date: data.date,
+      bibleText: data.bibleText,
+      hasReflectionSections: Array.isArray(data.reflectionSections),
+      sectionCount: Array.isArray(data.reflectionSections) ? data.reflectionSections.length : 0,
+      firstSectionQuestions: data.reflectionSections?.[0]?.questions,
     });
 
-    return NextResponse.json({
+    // Format the response to match the Devotion type
+    const formattedData: Devotion = {
       id: devotionDoc.id,
-      ...data
-    });
+      date: data.date,
+      bibleText: data.bibleText,
+      reflectionSections: data.reflectionSections || []
+    };
+
+    return NextResponse.json(formattedData);
 
   } catch (error: any) {
     console.error('Devotions API: Error processing request:', error);

@@ -38,8 +38,102 @@ import { getDevotionByDate } from "@/lib/services/devotionService";
 import { Devotion } from "@/lib/types/devotion";
 import { toast } from "react-hot-toast";
 
+// Bible verse interface
+interface BibleVerse {
+  text: string;
+  reference: string;
+  verses: {
+    verse: number;
+    text: string;
+  }[];
+}
+
+// Resource interface
+interface ResourceItem {
+  type: "commentary" | "video" | "podcast" | "book";
+  title: string;
+  description: string;
+  url?: string;
+  author?: string;
+}
+
+interface ResourcesResponse {
+  resources: ResourceItem[];
+  commentaries?: ResourceItem[];
+  videos?: ResourceItem[];
+  podcasts?: ResourceItem[];
+  books?: ResourceItem[];
+}
+
+// New interface for previous reflections
+interface StoredReflection {
+  question: string;
+  reflection: string;
+  timestamp: string;
+}
+
 // Unsplash API access key
 const UNSPLASH_ACCESS_KEY = process.env.NEXT_PUBLIC_UNSPLASH_ACCESS_KEY;
+
+/**
+ * Validate a URL to ensure it's safe to link to
+ */
+const isValidUrl = (url?: string): boolean => {
+  if (!url || typeof url !== "string") return false;
+  if (!url.startsWith("http://") && !url.startsWith("https://")) return false;
+
+  // Check URL structure
+  try {
+    const urlObj = new URL(url);
+
+    // Verify the domain is known and reliable
+    const reliableDomains = [
+      "biblehub.com",
+      "blueletterbible.org",
+      "bible.org",
+      "biblegateway.com",
+      "youtube.com",
+      "youtu.be",
+      "amazon.com",
+      "christianbook.com",
+      "goodreads.com",
+      "bibleproject.com",
+      "spotify.com",
+      "apple.com",
+      "podcasts.apple.com",
+    ];
+
+    const domain = urlObj.hostname;
+    return reliableDomains.some((validDomain) => domain.includes(validDomain));
+  } catch (e) {
+    return false;
+  }
+};
+
+/**
+ * Generate a fallback URL for a resource type
+ */
+const getFallbackUrl = (type: string | undefined, title: string): string => {
+  const searchQuery = encodeURIComponent(`${title} bible`);
+
+  switch (type) {
+    case "commentary":
+      return `https://biblehub.com/commentaries/`;
+    case "video":
+      return `https://www.youtube.com/results?search_query=${searchQuery}`;
+    case "podcast":
+      return `https://podcasts.apple.com/us/genre/podcasts-religion-spirituality-christianity/id1439`;
+    case "book":
+      return `https://www.amazon.com/s?k=${searchQuery}`;
+    default:
+      return `https://www.google.com/search?q=${searchQuery}`;
+  }
+};
+
+// Function to get the localStorage key for a date
+const getReflectionStorageKey = (dateString: string) => {
+  return `aiReflection_${dateString}`;
+};
 
 export default function ReflectionPage({
   params,
@@ -66,6 +160,25 @@ export default function ReflectionPage({
 
   // Hymn modal state
   const [showHymnModal, setShowHymnModal] = useState(false);
+  const [isHymnModalClosing, setIsHymnModalClosing] = useState(false);
+
+  // Scripture modal state
+  const [showScriptureModal, setShowScriptureModal] = useState(false);
+  const [isScriptureModalClosing, setIsScriptureModalClosing] = useState(false);
+  const [bibleVerse, setBibleVerse] = useState<BibleVerse | null>(null);
+  const [isFetchingBibleVerse, setIsFetchingBibleVerse] = useState(false);
+
+  // Resources modal state
+  const [showResourcesModal, setShowResourcesModal] = useState(false);
+  const [isResourcesModalClosing, setIsResourcesModalClosing] = useState(false);
+  const [resources, setResources] = useState<ResourcesResponse | null>(null);
+  const [isFetchingResources, setIsFetchingResources] = useState(false);
+  const [resourcesError, setResourcesError] = useState("");
+
+  // Add state for previous reflections
+  const [previousReflections, setPreviousReflections] = useState<
+    StoredReflection[]
+  >([]);
 
   // Create a date-based parameter to change images daily
   const getDateBasedParam = (date: string, salt: string = "") => {
@@ -143,7 +256,43 @@ export default function ReflectionPage({
   useEffect(() => {
     console.log("Loading devotion for date:", params.date);
     checkAndLoadDevotion(params.date);
+
+    // Reset AI reflection state when navigating to a different date
+    setAiReflection("");
+    setQuestion("");
+    setAiError("");
   }, [params.date, user]);
+
+  // Load previous reflections from localStorage on mount
+  useEffect(() => {
+    const loadPreviousReflections = () => {
+      try {
+        const storageKey = getReflectionStorageKey(params.date);
+        console.log(
+          "[DEBUG] Loading previous reflections, storage key:",
+          storageKey
+        );
+        const storedData = localStorage.getItem(storageKey);
+
+        console.log("[DEBUG] Raw stored data:", storedData);
+
+        if (storedData) {
+          const parsed = JSON.parse(storedData);
+          console.log("[DEBUG] Parsed data:", parsed);
+          // Handle both array format and old single-item format
+          const reflections = Array.isArray(parsed) ? parsed : [parsed];
+          console.log("[DEBUG] Setting previous reflections:", reflections);
+          setPreviousReflections(reflections);
+        } else {
+          console.log("[DEBUG] No previous reflections found in localStorage");
+        }
+      } catch (error) {
+        console.error("[DEBUG] Error loading previous reflections:", error);
+      }
+    };
+
+    loadPreviousReflections();
+  }, [params.date]);
 
   // Function to handle navigation
   const handleDateChange = async (newDate: Date) => {
@@ -195,6 +344,11 @@ export default function ReflectionPage({
     setAiError("");
 
     try {
+      console.log(
+        "[DEBUG] Generating reflection for question:",
+        question.trim()
+      );
+
       const response = await fetch("/api/reflection", {
         method: "POST",
         headers: {
@@ -212,9 +366,69 @@ export default function ReflectionPage({
         throw new Error(data.error || "Failed to generate reflection");
       }
 
+      console.log("[DEBUG] Received reflection:", data.reflection);
       setAiReflection(data.reflection);
+
+      // Get existing reflections from localStorage
+      const storageKey = getReflectionStorageKey(params.date);
+      console.log("[DEBUG] Storage key for saving:", storageKey);
+      let existingReflections = [];
+      try {
+        const existingData = localStorage.getItem(storageKey);
+        console.log("[DEBUG] Existing data in localStorage:", existingData);
+
+        if (existingData) {
+          const parsed = JSON.parse(existingData);
+          console.log("[DEBUG] Parsed existing data:", parsed);
+          // Handle both array format and old single-item format
+          existingReflections = Array.isArray(parsed) ? parsed : [parsed];
+          console.log(
+            "[DEBUG] Existing reflections after formatting:",
+            existingReflections
+          );
+        }
+      } catch (error) {
+        console.error("[DEBUG] Error parsing stored reflections:", error);
+      }
+
+      // Create the new reflection
+      const newReflection = {
+        question: question.trim(),
+        reflection: data.reflection,
+        timestamp: new Date().toISOString(),
+      };
+
+      console.log("[DEBUG] New reflection to add:", newReflection);
+
+      // Add new reflection to the array, avoiding duplicates
+      const isDuplicate = existingReflections.some(
+        (item) => item.question === newReflection.question
+      );
+
+      console.log("[DEBUG] Is duplicate question:", isDuplicate);
+
+      if (!isDuplicate) {
+        existingReflections.push(newReflection);
+        console.log("[DEBUG] Updated reflections array:", existingReflections);
+
+        // Store updated array back to localStorage
+        const jsonToStore = JSON.stringify(existingReflections);
+        console.log("[DEBUG] Storing to localStorage:", jsonToStore);
+        localStorage.setItem(storageKey, jsonToStore);
+
+        // Verify the storage worked
+        const verifyStored = localStorage.getItem(storageKey);
+        console.log(
+          "[DEBUG] Verification - data in localStorage after save:",
+          verifyStored
+        );
+
+        // Update the state with all reflections (for internal tracking only)
+        console.log("[DEBUG] Updating state with all reflections");
+        setPreviousReflections(existingReflections);
+      }
     } catch (error) {
-      console.error("Error generating AI reflection:", error);
+      console.error("[DEBUG] Error generating AI reflection:", error);
       setAiError(
         error instanceof Error
           ? error.message
@@ -222,6 +436,8 @@ export default function ReflectionPage({
       );
     } finally {
       setIsAiLoading(false);
+      // Clear question input but keep the answer displayed
+      setQuestion("");
     }
   };
 
@@ -229,6 +445,146 @@ export default function ReflectionPage({
   const handleReflectionKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
       handleReflectionGeneration();
+    }
+  };
+
+  // Function to handle modal closing with animation
+  const closeHymnModal = () => {
+    setIsHymnModalClosing(true);
+    setTimeout(() => {
+      setShowHymnModal(false);
+      setIsHymnModalClosing(false);
+    }, 300); // Match animation duration
+  };
+
+  // Function to handle scripture modal closing with animation
+  const closeScriptureModal = () => {
+    setIsScriptureModalClosing(true);
+    setTimeout(() => {
+      setShowScriptureModal(false);
+      setIsScriptureModalClosing(false);
+    }, 300); // Match animation duration
+  };
+
+  // Function to handle resources modal closing with animation
+  const closeResourcesModal = () => {
+    setIsResourcesModalClosing(true);
+    setTimeout(() => {
+      setShowResourcesModal(false);
+      setIsResourcesModalClosing(false);
+    }, 300); // Match animation duration
+  };
+
+  // Function to fetch Bible verse
+  const fetchBibleVerse = async (reference: string) => {
+    if (!reference) return null;
+
+    setIsFetchingBibleVerse(true);
+    try {
+      console.log("Fetching Bible verse for reference:", reference);
+      const response = await fetch(
+        `https://bible-api.com/${encodeURIComponent(
+          reference
+        )}?verse_numbers=true`
+      );
+
+      if (!response.ok) {
+        throw new Error(`Bible API error: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log("Bible API response:", data);
+
+      if (!data.verses || data.verses.length === 0) {
+        console.error("No verses found for reference:", reference);
+        return null;
+      }
+
+      // Format the verses from the API response
+      const verses = data.verses.map((v: any) => ({
+        verse: v.verse,
+        text: v.text.trim(),
+      }));
+
+      return {
+        text: data.text,
+        reference: data.reference,
+        verses,
+      };
+    } catch (error) {
+      console.error("Error fetching Bible verse:", error);
+      toast.error("Failed to load Bible verses");
+      return null;
+    } finally {
+      setIsFetchingBibleVerse(false);
+    }
+  };
+
+  // Function to fetch resources
+  const fetchResources = async (
+    reference: string
+  ): Promise<ResourcesResponse | null> => {
+    if (!reference) return null;
+
+    setIsFetchingResources(true);
+    setResourcesError("");
+
+    try {
+      console.log("Fetching resources for reference:", reference);
+      const response = await fetch("/api/resources", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          verse: reference,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to fetch resources");
+      }
+
+      console.log("Resources data:", data);
+      return data as ResourcesResponse;
+    } catch (error) {
+      console.error("Error fetching resources:", error);
+      setResourcesError(
+        error instanceof Error
+          ? error.message
+          : "Failed to load resources. Please try again."
+      );
+      return null;
+    } finally {
+      setIsFetchingResources(false);
+    }
+  };
+
+  // Handle opening the scripture modal
+  const handleOpenScriptureModal = async () => {
+    if (devotionData?.bibleText && !bibleVerse) {
+      const verse = await fetchBibleVerse(devotionData.bibleText);
+      if (verse) {
+        setBibleVerse(verse);
+      }
+    }
+    setShowScriptureModal(true);
+  };
+
+  // Handle opening the resources modal
+  const handleOpenResourcesModal = () => {
+    // Show the modal immediately
+    setShowResourcesModal(true);
+
+    // Then fetch the resources if we don't have them already
+    if (devotionData?.bibleText && !resources && !isFetchingResources) {
+      fetchResources(devotionData.bibleText).then((resourcesData) => {
+        if (resourcesData) {
+          setResources(resourcesData);
+        }
+      });
     }
   };
 
@@ -314,7 +670,10 @@ export default function ReflectionPage({
             {/* Today's Scripture */}
             <div>
               <h3 className="text-xl mb-3">Today's Scripture</h3>
-              <div className="p-6 rounded-2xl bg-zinc-900/80">
+              <div
+                className="p-6 rounded-2xl bg-zinc-900/80 cursor-pointer hover:bg-zinc-800/80 transition-colors"
+                onClick={handleOpenScriptureModal}
+              >
                 <p className="text-2xl font-medium">
                   {devotionData?.bibleText || "No scripture available"}
                 </p>
@@ -397,7 +756,7 @@ export default function ReflectionPage({
             </div>
 
             {/* Resources */}
-            <Link href="#" className="block">
+            <div onClick={handleOpenResourcesModal} className="cursor-pointer">
               <div
                 className="relative overflow-hidden rounded-2xl"
                 style={{ height: "150px" }}
@@ -407,7 +766,7 @@ export default function ReflectionPage({
                   alt="Bible study resources"
                   className="absolute inset-0 w-full h-full object-cover"
                 />
-                <div className="absolute inset-0 bg-gradient-to-br from-black/70 via-purple-900/70 to-black/80" />
+                <div className="absolute inset-0 bg-gradient-to-br from-black/70 via-purple-900/70 to-black/80 hover:opacity-90 transition-opacity" />
                 <div className="relative p-6">
                   <h3 className="text-2xl font-semibold mb-2">
                     Resources for today's text
@@ -417,21 +776,31 @@ export default function ReflectionPage({
                   </p>
                 </div>
               </div>
-            </Link>
+            </div>
           </>
         )}
       </div>
 
       {/* Hymn Lyrics Modal */}
       {showHymnModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 animate-fadein">
-          <div className="w-full max-w-lg bg-zinc-900 rounded-t-2xl p-6 max-h-[80vh] overflow-y-auto animate-slidein">
+        <div
+          className={`fixed inset-0 z-50 flex items-end justify-center bg-black/80 ${
+            isHymnModalClosing ? "animate-fadeout" : "animate-fadein"
+          }`}
+          onClick={closeHymnModal}
+        >
+          <div
+            className={`w-full max-w-lg bg-zinc-900 rounded-t-2xl p-6 max-h-[80vh] overflow-y-auto ${
+              isHymnModalClosing ? "animate-slideout" : "animate-slidein"
+            }`}
+            onClick={(e) => e.stopPropagation()} // Prevent closing when clicking on the modal content
+          >
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold">
                 When I Survey the Wondrous Cross
               </h2>
               <button
-                onClick={() => setShowHymnModal(false)}
+                onClick={closeHymnModal}
                 className="p-2 text-white hover:text-gray-300"
               >
                 <svg
@@ -475,6 +844,378 @@ export default function ReflectionPage({
                 beloved hymns in Christian worship.
               </p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Scripture Modal */}
+      {showScriptureModal && (
+        <div
+          className={`fixed inset-0 z-50 flex items-end justify-center bg-black/80 ${
+            isScriptureModalClosing ? "animate-fadeout" : "animate-fadein"
+          }`}
+          onClick={closeScriptureModal}
+        >
+          <div
+            className={`w-full max-w-lg bg-zinc-900 rounded-t-2xl p-6 max-h-[80vh] overflow-y-auto ${
+              isScriptureModalClosing ? "animate-slideout" : "animate-slidein"
+            }`}
+            onClick={(e) => e.stopPropagation()} // Prevent closing when clicking on the modal content
+          >
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold">
+                {bibleVerse?.reference ||
+                  devotionData?.bibleText ||
+                  "Scripture"}
+              </h2>
+              <button
+                onClick={closeScriptureModal}
+                className="p-2 text-white hover:text-gray-300"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-6 w-6"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {isFetchingBibleVerse ? (
+                <div className="flex justify-center py-8">
+                  <div className="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : bibleVerse?.verses ? (
+                <div className="space-y-4">
+                  {bibleVerse.verses.map((verse) => (
+                    <p
+                      key={verse.verse}
+                      className="text-lg leading-relaxed text-white/90"
+                    >
+                      <span className="text-white/50 text-sm align-super mr-2">
+                        {verse.verse}
+                      </span>
+                      {verse.text}
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <div>
+                  {/* Fallback to display the raw text if no verse structure is available */}
+                  {devotionData?.bibleText && (
+                    <p className="text-lg leading-relaxed text-white/90">
+                      {devotionData.bibleText}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Resources Modal */}
+      {showResourcesModal && (
+        <div
+          className={`fixed inset-0 z-50 flex items-end justify-center bg-black/80 ${
+            isResourcesModalClosing ? "animate-fadeout" : "animate-fadein"
+          }`}
+          onClick={closeResourcesModal}
+        >
+          <div
+            className={`w-full max-w-lg bg-zinc-900 rounded-t-2xl p-6 max-h-[80vh] overflow-y-auto ${
+              isResourcesModalClosing ? "animate-slideout" : "animate-slidein"
+            }`}
+            onClick={(e) => e.stopPropagation()} // Prevent closing when clicking on the modal content
+          >
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold">
+                Resources for {bibleVerse?.reference || devotionData?.bibleText}
+              </h2>
+              <button
+                onClick={closeResourcesModal}
+                className="p-2 text-white hover:text-gray-300"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-6 w-6"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            {isFetchingResources ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <div className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin mb-4" />
+                <p className="text-white/70 text-lg">
+                  Finding resources for this passage...
+                </p>
+                <p className="text-white/50 text-sm mt-2">
+                  This may take a few moments
+                </p>
+              </div>
+            ) : resourcesError ? (
+              <div className="text-red-400 mb-4 px-4 py-2 bg-red-900/30 rounded-lg">
+                {resourcesError}
+              </div>
+            ) : !resources ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <div className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin mb-4" />
+                <p className="text-white/70 text-lg">
+                  Finding resources for this passage...
+                </p>
+                <p className="text-white/50 text-sm mt-2">
+                  This may take a few moments
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-8">
+                {/* Commentaries Section */}
+                {resources.commentaries &&
+                  resources.commentaries.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-medium text-white/80 mb-3">
+                        Online Commentaries
+                      </h3>
+                      <div className="space-y-4">
+                        {resources.commentaries.map((item, index) => (
+                          <div
+                            key={index}
+                            className="p-4 bg-zinc-800/50 rounded-xl"
+                          >
+                            <h4 className="font-bold text-white">
+                              {item.title}
+                            </h4>
+                            {item.author && (
+                              <p className="text-white/70 text-sm">
+                                {item.author}
+                              </p>
+                            )}
+                            <p className="text-white/80 mt-2">
+                              {item.description}
+                            </p>
+                            <a
+                              href={
+                                isValidUrl(item.url)
+                                  ? item.url
+                                  : getFallbackUrl(
+                                      item.type || "commentary",
+                                      item.title
+                                    )
+                              }
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-400 hover:text-blue-300 mt-2 inline-flex items-center"
+                            >
+                              Read Commentary
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-4 w-4 ml-1"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                                />
+                              </svg>
+                            </a>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                {/* Videos Section */}
+                {resources.videos && resources.videos.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-medium text-white/80 mb-3">
+                      Videos
+                    </h3>
+                    <div className="space-y-4">
+                      {resources.videos.map((item, index) => (
+                        <div
+                          key={index}
+                          className="p-4 bg-zinc-800/50 rounded-xl"
+                        >
+                          <h4 className="font-bold text-white">{item.title}</h4>
+                          {item.author && (
+                            <p className="text-white/70 text-sm">
+                              {item.author}
+                            </p>
+                          )}
+                          <p className="text-white/80 mt-2">
+                            {item.description}
+                          </p>
+                          <a
+                            href={
+                              isValidUrl(item.url)
+                                ? item.url
+                                : getFallbackUrl(
+                                    item.type || "video",
+                                    item.title
+                                  )
+                            }
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-400 hover:text-blue-300 mt-2 inline-flex items-center"
+                          >
+                            Watch Video
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-4 w-4 ml-1"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                              />
+                            </svg>
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Podcasts Section */}
+                {resources.podcasts && resources.podcasts.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-medium text-white/80 mb-3">
+                      Podcasts
+                    </h3>
+                    <div className="space-y-4">
+                      {resources.podcasts.map((item, index) => (
+                        <div
+                          key={index}
+                          className="p-4 bg-zinc-800/50 rounded-xl"
+                        >
+                          <h4 className="font-bold text-white">{item.title}</h4>
+                          {item.author && (
+                            <p className="text-white/70 text-sm">
+                              {item.author}
+                            </p>
+                          )}
+                          <p className="text-white/80 mt-2">
+                            {item.description}
+                          </p>
+                          <a
+                            href={
+                              isValidUrl(item.url)
+                                ? item.url
+                                : getFallbackUrl(
+                                    item.type || "podcast",
+                                    item.title
+                                  )
+                            }
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-400 hover:text-blue-300 mt-2 inline-flex items-center"
+                          >
+                            Listen to Podcast
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-4 w-4 ml-1"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                              />
+                            </svg>
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Books Section */}
+                {resources.books && resources.books.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-medium text-white/80 mb-3">
+                      Books
+                    </h3>
+                    <div className="space-y-4">
+                      {resources.books.map((item, index) => (
+                        <div
+                          key={index}
+                          className="p-4 bg-zinc-800/50 rounded-xl"
+                        >
+                          <h4 className="font-bold text-white">{item.title}</h4>
+                          {item.author && (
+                            <p className="text-white/70 text-sm">
+                              {item.author}
+                            </p>
+                          )}
+                          <p className="text-white/80 mt-2">
+                            {item.description}
+                          </p>
+                          <a
+                            href={
+                              isValidUrl(item.url)
+                                ? item.url
+                                : getFallbackUrl(
+                                    item.type || "book",
+                                    item.title
+                                  )
+                            }
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-400 hover:text-blue-300 mt-2 inline-flex items-center"
+                          >
+                            View Book
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-4 w-4 ml-1"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                              />
+                            </svg>
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

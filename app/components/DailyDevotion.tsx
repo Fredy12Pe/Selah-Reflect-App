@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import Image from "next/image";
-import { useAuth } from "@/app/context/AuthContext";
+import { useAuth } from "@/lib/context/AuthContext";
 
 export default function DailyDevotion() {
   const router = useRouter();
@@ -93,7 +93,9 @@ export default function DailyDevotion() {
           <div className="mt-auto">
             <button
               onClick={() =>
-                router.push(`/devotion/${format(new Date(), "yyyy-MM-dd")}`)
+                router.push(
+                  `/devotion/${format(new Date(), "yyyy-MM-dd")}/reflection`
+                )
               }
               className="flex items-center space-x-4 bg-white rounded-lg px-6 py-4 text-black"
             >
