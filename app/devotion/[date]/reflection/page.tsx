@@ -175,11 +175,6 @@ export default function ReflectionPage({
   const [isFetchingResources, setIsFetchingResources] = useState(false);
   const [resourcesError, setResourcesError] = useState("");
 
-  // Add state for previous reflections
-  const [previousReflections, setPreviousReflections] = useState<
-    StoredReflection[]
-  >([]);
-
   // Create a date-based parameter to change images daily
   const getDateBasedParam = (date: string, salt: string = "") => {
     const dateHash = date
@@ -262,37 +257,6 @@ export default function ReflectionPage({
     setQuestion("");
     setAiError("");
   }, [params.date, user]);
-
-  // Load previous reflections from localStorage on mount
-  useEffect(() => {
-    const loadPreviousReflections = () => {
-      try {
-        const storageKey = getReflectionStorageKey(params.date);
-        console.log(
-          "[DEBUG] Loading previous reflections, storage key:",
-          storageKey
-        );
-        const storedData = localStorage.getItem(storageKey);
-
-        console.log("[DEBUG] Raw stored data:", storedData);
-
-        if (storedData) {
-          const parsed = JSON.parse(storedData);
-          console.log("[DEBUG] Parsed data:", parsed);
-          // Handle both array format and old single-item format
-          const reflections = Array.isArray(parsed) ? parsed : [parsed];
-          console.log("[DEBUG] Setting previous reflections:", reflections);
-          setPreviousReflections(reflections);
-        } else {
-          console.log("[DEBUG] No previous reflections found in localStorage");
-        }
-      } catch (error) {
-        console.error("[DEBUG] Error loading previous reflections:", error);
-      }
-    };
-
-    loadPreviousReflections();
-  }, [params.date]);
 
   // Function to handle navigation
   const handleDateChange = async (newDate: Date) => {
@@ -425,7 +389,6 @@ export default function ReflectionPage({
 
         // Update the state with all reflections (for internal tracking only)
         console.log("[DEBUG] Updating state with all reflections");
-        setPreviousReflections(existingReflections);
       }
     } catch (error) {
       console.error("[DEBUG] Error generating AI reflection:", error);

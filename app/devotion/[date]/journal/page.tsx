@@ -270,6 +270,28 @@ export default function JournalPage({ params }: { params: { date: string } }) {
     setExpandedReflection(expandedReflection === index ? null : index);
   };
 
+  // Delete an AI reflection
+  const deleteReflection = (index: number, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent triggering the accordion toggle
+
+    try {
+      // Create a new array without the reflection to delete
+      const updatedReflections = aiReflections.filter((_, i) => i !== index);
+
+      // Update the state
+      setAiReflections(updatedReflections);
+
+      // Mark as having changes that need to be saved
+      setHasChanges(true);
+
+      // Show success message
+      toast.success("Reflection deleted");
+    } catch (error) {
+      console.error("[DEBUG-JOURNAL] Error deleting reflection:", error);
+      toast.error("Failed to delete reflection");
+    }
+  };
+
   // Save all entries to Firebase
   const saveEntries = async () => {
     if (!user) {
@@ -490,11 +512,33 @@ export default function JournalPage({ params }: { params: { date: string } }) {
                         <h3 className="text-lg font-medium text-white/90 truncate pr-4">
                           {reflection.question}
                         </h3>
-                        {expandedReflection === index ? (
-                          <ChevronUpIcon className="w-5 h-5 flex-shrink-0" />
-                        ) : (
-                          <ChevronDownIcon className="w-5 h-5 flex-shrink-0" />
-                        )}
+                        <div className="flex items-center">
+                          <button
+                            onClick={(e) => deleteReflection(index, e)}
+                            className="mr-2 p-1 text-white/60 hover:text-white/90 transition-colors"
+                            aria-label="Delete reflection"
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-5 w-5"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M6 18L18 6M6 6l12 12"
+                              />
+                            </svg>
+                          </button>
+                          {expandedReflection === index ? (
+                            <ChevronUpIcon className="w-5 h-5 flex-shrink-0" />
+                          ) : (
+                            <ChevronDownIcon className="w-5 h-5 flex-shrink-0" />
+                          )}
+                        </div>
                       </div>
 
                       {expandedReflection === index && (
