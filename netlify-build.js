@@ -103,6 +103,17 @@ FIREBASE_PRIVATE_KEY="${fakePrivateKey.replace(/\n/g, '\\n')}"
 fs.writeFileSync(tempEnvPath, buildEnvContent);
 fs.copyFileSync(tempEnvPath, envLocalPath);
 
+// Ensure all necessary dependencies are installed
+try {
+  console.log(`${colors.bright}${colors.cyan}🔍 Checking for missing Firebase dependencies...${colors.reset}`);
+  execSync('npm install --save @firebase/app @firebase/auth @firebase/firestore @firebase/storage @firebase/util @firebase/component', { stdio: 'inherit' });
+  console.log(`${colors.bright}${colors.green}✅ Dependencies installed successfully${colors.reset}`);
+} catch (error) {
+  console.error(`${colors.bright}${colors.red}❌ Failed to install dependencies${colors.reset}`);
+  console.error(error);
+  // Continue to build even if dependency installation fails
+}
+
 // Run the build
 console.log(`${colors.bright}${colors.green}🏗️  Running Next.js build...${colors.reset}`);
 try {

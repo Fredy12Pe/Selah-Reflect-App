@@ -1,13 +1,36 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { checkFirebaseConfig } from "@/lib/firebase/checkConfig";
-import { getApps, getApp, initializeApp } from "firebase/app";
-import { getAuth, signInWithPopup, GoogleAuthProvider } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
-import { firebaseConfig } from "@/lib/firebase/firebase";
+import { isBrowser } from "@/lib/utils/environment";
 import { useAuth } from "@/lib/context/AuthContext";
+import { getFirebaseAuth } from "@/lib/firebase";
+
+// Safe imports for Netlify build - these will only be imported in the browser
+const importFirebase = async () => {
+  if (!isBrowser) return null;
+
+  const { checkFirebaseConfig } = await import("@/lib/firebase/checkConfig");
+  const { getApps, getApp, initializeApp } = await import("firebase/app");
+  const { getAuth, signInWithPopup, GoogleAuthProvider } = await import(
+    "firebase/auth"
+  );
+  const { getFirestore } = await import("firebase/firestore");
+  const { getStorage } = await import("firebase/storage");
+  const { firebaseConfig } = await import("@/lib/firebase/firebase");
+
+  return {
+    checkFirebaseConfig,
+    getApps,
+    getApp,
+    initializeApp,
+    getAuth,
+    signInWithPopup,
+    GoogleAuthProvider,
+    getFirestore,
+    getStorage,
+    firebaseConfig,
+  };
+};
 
 export default function FirebaseTestPage() {
   // Add auth state
@@ -31,10 +54,20 @@ export default function FirebaseTestPage() {
   const [loading, setLoading] = useState(true);
 
   const handleSignIn = async () => {
+    if (!isBrowser) return;
+
     try {
-      const auth = getAuth();
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      const firebase = await importFirebase();
+      if (!firebase) return;
+
+      const auth = getFirebaseAuth();
+      if (!auth) {
+        setError("Auth is not available");
+        return;
+      }
+
+      const provider = new firebase.GoogleAuthProvider();
+      await firebase.signInWithPopup(auth, provider);
     } catch (error) {
       console.error("Sign in error:", error);
       setError(error instanceof Error ? error.message : "Failed to sign in");
@@ -42,118 +75,138 @@ export default function FirebaseTestPage() {
   };
 
   useEffect(() => {
-    console.log("Starting Firebase test...");
-    console.log("Auth state:", {
-      user,
-      loading: authLoading,
-      error: authError,
-    });
-    console.log("Current Firebase config:", {
-      ...firebaseConfig,
-      apiKey: firebaseConfig.apiKey ? "***" : undefined,
-      appId: firebaseConfig.appId ? "***" : undefined,
-    });
-
-    // Check configuration
-    try {
-      const status = checkFirebaseConfig();
-      console.log("Config check result:", status);
-      setConfigStatus(status);
-
-      if (status.hasIssues) {
-        setError("Firebase configuration has issues. Check the details below.");
-        setLoading(false);
-        return;
-      }
-
-      // Try to initialize Firebase if not already initialized
-      if (!status.isInitialized) {
-        console.log("Initializing Firebase...");
-        const app = initializeApp(firebaseConfig);
-        setInitStatus((prev) => ({ ...prev, app: true }));
-        console.log("Firebase app initialized");
-
-        // Try to initialize Auth
-        try {
-          console.log("Initializing Auth...");
-          const auth = getAuth(app);
-          setInitStatus((prev) => ({ ...prev, auth: true }));
-          console.log("Auth initialized");
-        } catch (e) {
-          console.error("Auth initialization error:", e);
-          setError(
-            `Auth initialization failed: ${
-              e instanceof Error ? e.message : String(e)
-            }`
-          );
-        }
-
-        // Try to initialize Firestore
-        try {
-          console.log("Initializing Firestore...");
-          const db = getFirestore(app);
-          setInitStatus((prev) => ({ ...prev, firestore: true }));
-          console.log("Firestore initialized");
-        } catch (e) {
-          console.error("Firestore initialization error:", e);
-          setError(
-            `Firestore initialization failed: ${
-              e instanceof Error ? e.message : String(e)
-            }`
-          );
-        }
-
-        // Try to initialize Storage
-        try {
-          const storage = getStorage();
-          setInitStatus((prev) => ({ ...prev, storage: true }));
-          console.log("Storage initialized");
-        } catch (e) {
-          console.error("Storage initialization error:", e);
-          setError(
-            `Storage initialization failed: ${
-              e instanceof Error ? e.message : String(e)
-            }`
-          );
-        }
-      } else {
-        console.log("Firebase already initialized, checking services...");
-        // Firebase is already initialized, just check services
-        try {
-          const app = getApp();
-          setInitStatus((prev) => ({ ...prev, app: true }));
-          console.log("Found existing Firebase app");
-
-          const auth = getAuth(app);
-          setInitStatus((prev) => ({ ...prev, auth: true }));
-          console.log("Found existing Auth instance");
-
-          const db = getFirestore(app);
-          setInitStatus((prev) => ({ ...prev, firestore: true }));
-          console.log("Found existing Firestore instance");
-
-          const storage = getStorage();
-          setInitStatus((prev) => ({ ...prev, storage: true }));
-          console.log("Found existing Storage instance");
-        } catch (e) {
-          console.error("Service check error:", e);
-          setError(
-            `Service check failed: ${
-              e instanceof Error ? e.message : String(e)
-            }`
-          );
-        }
-      }
-    } catch (e) {
-      console.error("Configuration check error:", e);
-      setError(
-        `Configuration check failed: ${
-          e instanceof Error ? e.message : String(e)
-        }`
-      );
-    } finally {
+    // Skip if not in browser environment
+    if (!isBrowser) {
       setLoading(false);
+      return;
     }
+
+    const initFirebase = async () => {
+      console.log("Starting Firebase test...");
+      console.log("Auth state:", {
+        user,
+        loading: authLoading,
+        error: authError,
+      });
+
+      try {
+        const firebase = await importFirebase();
+        if (!firebase) {
+          setError("Failed to import Firebase modules");
+          setLoading(false);
+          return;
+        }
+
+        console.log("Current Firebase config:", {
+          ...firebase.firebaseConfig,
+          apiKey: firebase.firebaseConfig.apiKey ? "***" : undefined,
+          appId: firebase.firebaseConfig.appId ? "***" : undefined,
+        });
+
+        // Check configuration
+        const status = firebase.checkFirebaseConfig();
+        console.log("Config check result:", status);
+        setConfigStatus(status);
+
+        if (status.hasIssues) {
+          setError(
+            "Firebase configuration has issues. Check the details below."
+          );
+          setLoading(false);
+          return;
+        }
+
+        // Try to initialize Firebase if not already initialized
+        if (!status.isInitialized) {
+          console.log("Initializing Firebase...");
+          const app = firebase.initializeApp(firebase.firebaseConfig);
+          setInitStatus((prev) => ({ ...prev, app: true }));
+          console.log("Firebase app initialized");
+
+          // Try to initialize Auth
+          try {
+            console.log("Initializing Auth...");
+            const auth = firebase.getAuth(app);
+            setInitStatus((prev) => ({ ...prev, auth: true }));
+            console.log("Auth initialized");
+          } catch (e) {
+            console.error("Auth initialization error:", e);
+            setError(
+              `Auth initialization failed: ${
+                e instanceof Error ? e.message : String(e)
+              }`
+            );
+          }
+
+          // Try to initialize Firestore
+          try {
+            console.log("Initializing Firestore...");
+            const db = firebase.getFirestore(app);
+            setInitStatus((prev) => ({ ...prev, firestore: true }));
+            console.log("Firestore initialized");
+          } catch (e) {
+            console.error("Firestore initialization error:", e);
+            setError(
+              `Firestore initialization failed: ${
+                e instanceof Error ? e.message : String(e)
+              }`
+            );
+          }
+
+          // Try to initialize Storage
+          try {
+            const storage = firebase.getStorage();
+            setInitStatus((prev) => ({ ...prev, storage: true }));
+            console.log("Storage initialized");
+          } catch (e) {
+            console.error("Storage initialization error:", e);
+            setError(
+              `Storage initialization failed: ${
+                e instanceof Error ? e.message : String(e)
+              }`
+            );
+          }
+        } else {
+          console.log("Firebase already initialized, checking services...");
+          // Firebase is already initialized, just check services
+          try {
+            const app = firebase.getApp();
+            setInitStatus((prev) => ({ ...prev, app: true }));
+            console.log("Found existing Firebase app");
+
+            const auth = firebase.getAuth(app);
+            setInitStatus((prev) => ({ ...prev, auth: true }));
+            console.log("Found existing Auth instance");
+
+            const db = firebase.getFirestore(app);
+            setInitStatus((prev) => ({ ...prev, firestore: true }));
+            console.log("Found existing Firestore instance");
+
+            const storage = firebase.getStorage();
+            setInitStatus((prev) => ({ ...prev, storage: true }));
+            console.log("Found existing Storage instance");
+          } catch (e) {
+            console.error("Service check error:", e);
+            setError(
+              `Service check failed: ${
+                e instanceof Error ? e.message : String(e)
+              }`
+            );
+          }
+        }
+      } catch (e) {
+        console.error("Configuration check error:", e);
+        setError(
+          `Configuration check failed: ${
+            e instanceof Error ? e.message : String(e)
+          }`
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initFirebase();
   }, [user, authLoading, authError]);
 
   if (loading || authLoading) {
@@ -283,13 +336,11 @@ export default function FirebaseTestPage() {
         </ul>
       </section>
 
-      {/* Error Display */}
+      {/* Errors */}
       {error && (
         <section className="mb-8">
           <h2 className="text-xl font-semibold mb-4 text-red-600">Error</h2>
-          <pre className="bg-red-50 p-4 rounded text-red-600 whitespace-pre-wrap break-all">
-            {error}
-          </pre>
+          <div className="bg-red-100 p-4 rounded text-red-800">{error}</div>
         </section>
       )}
     </div>

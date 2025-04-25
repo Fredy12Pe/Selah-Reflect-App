@@ -12,8 +12,10 @@
     "deploy:prod": "node scripts/deploy-netlify.js --prod"
   },
   "dependencies": {
+    "@firebase/app": "^0.9.29",
     "@firebase/auth": "^1.10.0",
     "@firebase/firestore": "^4.7.10",
+    "@firebase/storage": "^0.12.5",
     "@headlessui/react": "^2.2.2",
     "@heroicons/react": "^2.0.18",
     "browserify-zlib": "^0.2.0",

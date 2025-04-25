@@ -37,6 +37,15 @@ const nextConfig = {
         https: require.resolve('https-browserify'),
         os: require.resolve('os-browserify/browser'),
       };
+
+      // Force resolving Firebase dependencies for client builds
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        '@firebase/app': require.resolve('@firebase/app'),
+        '@firebase/auth': require.resolve('@firebase/auth'),
+        '@firebase/firestore': require.resolve('@firebase/firestore'),
+        '@firebase/storage': require.resolve('@firebase/storage'),
+      };
     }
 
     // Handle module not found errors with Firebase
@@ -47,7 +56,17 @@ const nextConfig = {
 
     return config;
   },
-  transpilePackages: ['undici', '@firebase/app', '@firebase/auth', '@firebase/firestore', '@firebase/storage', '@firebase/functions', '@firebase/database'],
+  transpilePackages: [
+    'undici', 
+    '@firebase/app', 
+    '@firebase/auth', 
+    '@firebase/firestore', 
+    '@firebase/storage', 
+    '@firebase/functions', 
+    '@firebase/database',
+    '@firebase/util',
+    '@firebase/component'
+  ],
 }
 
 module.exports = withPWA(nextConfig); 
