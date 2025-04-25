@@ -1,8 +1,9 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, browserLocalPersistence, setPersistence, onAuthStateChanged, User, Auth } from 'firebase/auth';
 import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, Firestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
+import { getStorage } from '../firebase/storage-patch';
 import { checkFirebaseConfig } from './checkConfig';
+import { isBrowser } from '../utils/environment';
 
 // Log environment variables (without exposing sensitive values)
 console.log('Firebase Config Environment Variables Present:', {
@@ -29,17 +30,35 @@ let auth: Auth | undefined;
 let db: Firestore | undefined;
 let storage: any | undefined;
 
+// Initialize Firebase only in browser environments
+if (isBrowser()) {
+  try {
+    console.log('Firebase: Initializing in browser environment');
+    app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+    db = getFirestore(app);
+    auth = getAuth(app);
+    storage = getStorage(app);
+    console.log('Firebase: Successfully initialized in browser');
+  } catch (error) {
+    console.error('Error initializing Firebase:', error);
+  }
+}
+
 export function getFirebaseApp(): FirebaseApp {
-  const { hasIssues, issues, config } = checkFirebaseConfig();
-  
-  if (hasIssues) {
-    console.error('Firebase configuration issues detected:');
-    issues.forEach(issue => console.error('- ' + issue));
-    console.error('Configuration status:', config);
-    throw new Error('Invalid Firebase configuration');
+  if (!isBrowser()) {
+    throw new Error('Firebase is not available in non-browser environments');
   }
 
   if (!app) {
+    const { hasIssues, issues, config } = checkFirebaseConfig();
+    
+    if (hasIssues) {
+      console.error('Firebase configuration issues detected:');
+      issues.forEach(issue => console.error('- ' + issue));
+      console.error('Configuration status:', config);
+      throw new Error('Invalid Firebase configuration');
+    }
+
     try {
       app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
       console.log('Firebase app initialized successfully');
@@ -51,117 +70,33 @@ export function getFirebaseApp(): FirebaseApp {
   return app;
 }
 
-const initializeFirebase = async (): Promise<FirebaseApp | null> => {
-  if (typeof window === 'undefined') {
-    console.log('Firebase: Skipping initialization on server side');
-    return null;
-  }
-
-  try {
-    // Check if config is valid
-    console.log('Firebase: Validating configuration');
-    const missingKeys = Object.entries(firebaseConfig)
-      .filter(([_, value]) => !value)
-      .map(([key]) => key);
-
-    if (missingKeys.length > 0) {
-      throw new Error(`Missing Firebase configuration keys: ${missingKeys.join(', ')}`);
-    }
-
-    console.log('Firebase: Starting initialization');
-    
-    // Initialize or get existing Firebase app
-    if (!app) {
-      console.log('Firebase: Creating new app instance');
-      app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-      console.log('Firebase: App initialized successfully');
-    } else {
-      console.log('Firebase: Using existing app instance');
-    }
-
-    // Initialize Auth with persistence
-    if (!auth) {
-      console.log('Firebase: Initializing Auth');
-      auth = getAuth(app);
-      await setPersistence(auth, browserLocalPersistence);
-      console.log('Firebase: Auth initialized with persistence');
-    } else {
-      console.log('Firebase: Using existing Auth instance');
-    }
-
-    // Initialize Firestore with persistence
-    if (!db) {
-      console.log('Firebase: Initializing Firestore');
-      db = initializeFirestore(app, {
-        localCache: persistentLocalCache({
-          tabManager: persistentMultipleTabManager()
-        })
-      });
-      console.log('Firebase: Firestore initialized with persistence');
-    } else {
-      console.log('Firebase: Using existing Firestore instance');
-    }
-
-    // Initialize Storage if needed
-    if (!storage) {
-      console.log('Firebase: Initializing Storage');
-      storage = getStorage(app);
-      console.log('Firebase: Storage initialized');
-    } else {
-      console.log('Firebase: Using existing Storage instance');
-    }
-
-    // Set up auth state listener to handle token refresh
-    onAuthStateChanged(auth, async (user: User | null) => {
-      console.log('Auth state changed:', user ? `User ${user.uid} logged in` : 'User logged out');
-      if (user) {
-        try {
-          // Force token refresh
-          const token = await user.getIdToken(true);
-          console.log('Firebase token refreshed successfully');
-          // Log user claims
-          const idTokenResult = await user.getIdTokenResult();
-          console.log('User claims:', idTokenResult.claims);
-        } catch (error) {
-          console.error('Error refreshing token:', error);
-        }
-      }
-    });
-
-    return app;
-  } catch (error) {
-    console.error('Firebase: Initialization error:', error);
-    throw error;
-  }
-};
-
-// Initialize Firebase on import
-if (typeof window !== 'undefined') {
-  console.log('Firebase: Attempting initialization on import');
-  initializeFirebase().catch(error => {
-    console.error('Firebase: Failed to initialize on import:', error);
-  });
-}
-
 export function getFirebaseAuth(): Auth {
-  const app = getFirebaseApp();
-  try {
-    if (!auth) {
-      auth = getAuth(app);
-      console.log('Firebase auth initialized successfully');
-    }
-    return auth;
-  } catch (error) {
-    console.error('Error initializing Firebase auth:', error);
-    throw error;
+  if (!isBrowser()) {
+    throw new Error('Firebase Auth is not available in non-browser environments');
   }
+
+  if (!auth) {
+    const currentApp = getFirebaseApp();
+    try {
+      auth = getAuth(currentApp);
+      console.log('Firebase auth initialized successfully');
+    } catch (error) {
+      console.error('Error initializing Firebase auth:', error);
+      throw error;
+    }
+  }
+  return auth;
 }
 
 export function getFirebaseDb(): Firestore {
+  if (!isBrowser()) {
+    throw new Error('Firebase Firestore is not available in non-browser environments');
+  }
+
   if (!db) {
-    const app = getFirebaseApp();
+    const currentApp = getFirebaseApp();
     try {
-      db = initializeFirestore(app, {
+      db = initializeFirestore(currentApp, {
         localCache: persistentLocalCache({
           tabManager: persistentMultipleTabManager()
         })
@@ -176,10 +111,14 @@ export function getFirebaseDb(): Firestore {
 }
 
 export function getFirebaseStorage(): any {
+  if (!isBrowser()) {
+    throw new Error('Firebase Storage is not available in non-browser environments');
+  }
+
   if (!storage) {
-    const app = getFirebaseApp();
+    const currentApp = getFirebaseApp();
     try {
-      storage = getStorage(app);
+      storage = getStorage(currentApp);
       console.log('Firebase storage initialized successfully');
     } catch (error) {
       console.error('Error initializing Firebase storage:', error);
@@ -187,4 +126,6 @@ export function getFirebaseStorage(): any {
     }
   }
   return storage;
-} 
+}
+
+export { app, db, auth, storage }; 

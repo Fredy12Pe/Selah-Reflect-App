@@ -40,18 +40,39 @@ const nextConfig = {
       
       // Add a rule to handle node: URI imports directly
       config.module.rules.push({
-        test: /\.js$/,
-        include: [
-          /node_modules\/@firebase\/storage/,
-          /node_modules\/firebase\/storage/,
-          /node_modules\/@fastify\/busboy/,
-          /node_modules\/undici/
-        ],
-        resolve: {
-          alias: {
-            'node:events': path.resolve(__dirname, 'shims/node-events.js'),
-            'node:stream': path.resolve(__dirname, 'shims/node-stream.js'),
-            'node:util': path.resolve(__dirname, 'shims/node-util.js')
+        test: /\.(js|mjs|jsx|ts|tsx)$/,
+        exclude: /node_modules(?!\/(@firebase|firebase|@fastify\/busboy|undici))/,
+        use: {
+          loader: 'babel-loader',
+          options: {
+            presets: ['next/babel'],
+            plugins: [
+              // Custom babel plugin to transform node:xxx imports
+              function () {
+                return {
+                  visitor: {
+                    ImportDeclaration(path) {
+                      const source = path.node.source;
+                      if (source.value.startsWith('node:')) {
+                        // Replace node:xxx with regular module name
+                        source.value = source.value.substring(5);
+                      }
+                    },
+                    CallExpression(path) {
+                      // Handle require('node:xxx') calls
+                      if (
+                        path.node.callee.name === 'require' &&
+                        path.node.arguments.length > 0 &&
+                        path.node.arguments[0].type === 'StringLiteral' &&
+                        path.node.arguments[0].value.startsWith('node:')
+                      ) {
+                        path.node.arguments[0].value = path.node.arguments[0].value.substring(5);
+                      }
+                    }
+                  }
+                };
+              }
+            ]
           }
         }
       });

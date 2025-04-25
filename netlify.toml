@@ -1,84 +1,101 @@
 [build]
-  command = "node patches/firebase-storage-fix/patch-node-imports.js && next build"
+  command = "npm run build:client"
   publish = ".next"
 
 [build.environment]
   NEXT_TELEMETRY_DISABLED = "1"
-  NETLIFY = "true"
   NODE_VERSION = "20.11.1"
   NPM_VERSION = "10.2.4"
-  # Explicitly set build mode to help with conditional rendering
-  NEXT_PUBLIC_NETLIFY_CONTEXT = "production"
-  # Skip Firebase initialization during build
   SKIP_FIREBASE_INIT_ON_BUILD = "true"
+  SKIP_API_ROUTES = "true"
+  SKIP_FIREBASE_ADMIN = "true"
+  NETLIFY = "true"
 
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
+# Disable JavaScript bundling
+[build.processing]
+  skip_processing = true
 
-# Set environment variables based on context
-[context.production.environment]
-  NEXT_PUBLIC_NETLIFY_CONTEXT = "production"
-  NODE_VERSION = "20.11.1"
-  NPM_VERSION = "10.2.4"
+[build.processing.js]
+  bundle = false
+  minify = false
 
-[context.deploy-preview.environment]
-  NEXT_PUBLIC_NETLIFY_CONTEXT = "preview"
-  NODE_VERSION = "20.11.1"
-  NPM_VERSION = "10.2.4"
+# Ensure correct MIME types for all static assets
+[[headers]]
+  for = "/_next/static/chunks/*"
+  [headers.values]
+    Content-Type = "application/javascript"
+    Cache-Control = "public, max-age=31536000, immutable"
 
-[context.branch-deploy.environment]
-  NODE_VERSION = "20.11.1"
-  NPM_VERSION = "10.2.4"
+[[headers]]
+  for = "/_next/static/css/*"
+  [headers.values]
+    Content-Type = "text/css"
+    Cache-Control = "public, max-age=31536000, immutable"
 
-# Improve performance and security
+[[headers]]
+  for = "/_next/static/media/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/firebase-fix.js"
+  [headers.values]
+    Content-Type = "application/javascript"
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/firebase-patch.js"
+  [headers.values]
+    Content-Type = "application/javascript"
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/fix-node-modules.js"
+  [headers.values]
+    Content-Type = "application/javascript"
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Content-Type = "application/javascript"
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/workbox-*.js"
+  [headers.values]
+    Content-Type = "application/javascript"
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*.(js|css|svg|jpg|jpeg|png|gif|ico|json)"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Essential security headers
 [[headers]]
   for = "/*"
   [headers.values]
     X-Frame-Options = "DENY"
     X-XSS-Protection = "1; mode=block"
-    X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://images.unsplash.com https://source.unsplash.com; font-src 'self' data:; connect-src 'self' https://bible-api.com https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com;"
-
-# Add caching headers for static assets
-[[headers]]
-  for = "/_next/static/*"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
-
-[[headers]]
-  for = "/static/*"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
-
-# PWA manifest and icon files
-[[headers]]
-  for = "/manifest.json"
-  [headers.values]
-    Content-Type = "application/manifest+json"
-    Cache-Control = "public, max-age=86400"
-
-[[headers]]
-  for = "/*.png"
-  [headers.values]
-    Cache-Control = "public, max-age=86400"
-
-# For Service Worker in PWA
-[[headers]]
-  for = "/sw.js"
-  [headers.values]
-    Cache-Control = "no-cache"
-
-# Fix for Firebase auth redirects
+    X-Content-Type-Options = "nosniff"
+    Content-Security-Policy = "default-src 'self' *.netlify.app firebaseinstallations.googleapis.com firebasestorage.googleapis.com firestore.googleapis.com identitytoolkit.googleapis.com securetoken.googleapis.com; img-src 'self' data: blob: firebasestorage.googleapis.com; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' *.netlify.app firebaseinstallations.googleapis.com firebasestorage.googleapis.com firestore.googleapis.com identitytoolkit.googleapis.com securetoken.googleapis.com; frame-src 'self';"
+    
+# Firebase auth redirects
 [[redirects]]
-  from = "/__/auth/*"
-  to = "https://selah-app.firebaseapp.com/__/auth/:splat"
+  from = "/.well-known/assetlinks.json"
+  to = "/api/assetlinks"
+  status = 200
+  
+# API route handling
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/nextjs-api/:splat"
   status = 200
 
-# Handle SPA fallback for client-side routing
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-  force = false
-  conditions = {Role = ["anonymous"]}
+# Use the Next.js plugin instead of redirecting everything to index.html
+[plugin]
+  package = "@netlify/plugin-nextjs"
