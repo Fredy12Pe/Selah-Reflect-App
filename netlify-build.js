@@ -11,6 +11,10 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
+// Check if this is a dry run (for testing purposes)
+const isDryRun = process.argv.includes('--dry-run') || process.env.DRY_RUN === 'true';
+const isNetlifyTest = process.env.NETLIFY_TEST === 'true';
+
 // Colors for console output
 const colors = {
   reset: '\x1b[0m',
@@ -23,7 +27,10 @@ const colors = {
   cyan: '\x1b[36m',
 };
 
-console.log(`${colors.bright}${colors.blue}🚀 Starting Netlify optimized build process${colors.reset}`);
+console.log(`${colors.bright}${colors.blue}🚀 Starting ${isDryRun ? 'dry-run of ' : ''}Netlify optimized build process${colors.reset}`);
+if (isDryRun) {
+  console.log(`${colors.yellow}⚠️  Dry run mode: Will simulate the build process without actually building${colors.reset}`);
+}
 
 // Create a temporary .env.local file for the build
 const tempEnvPath = path.join(process.cwd(), '.env.temp');
@@ -104,14 +111,18 @@ fs.writeFileSync(tempEnvPath, buildEnvContent);
 fs.copyFileSync(tempEnvPath, envLocalPath);
 
 // Ensure all necessary dependencies are installed
-try {
-  console.log(`${colors.bright}${colors.cyan}🔍 Checking for missing dependencies...${colors.reset}`);
-  execSync('npm install --save @firebase/app @firebase/auth @firebase/firestore @firebase/storage @firebase/util @firebase/component console-browserify buffer util path-browserify stream-browserify', { stdio: 'inherit' });
-  console.log(`${colors.bright}${colors.green}✅ Dependencies installed successfully${colors.reset}`);
-} catch (error) {
-  console.error(`${colors.bright}${colors.red}❌ Failed to install dependencies${colors.reset}`);
-  console.error(error);
-  // Continue to build even if dependency installation fails
+if (!isDryRun || isNetlifyTest) {
+  try {
+    console.log(`${colors.bright}${colors.cyan}🔍 Checking for missing dependencies...${colors.reset}`);
+    execSync('npm install --save @firebase/app @firebase/auth @firebase/firestore @firebase/storage @firebase/util @firebase/component console-browserify buffer util path-browserify stream-browserify', { stdio: 'inherit' });
+    console.log(`${colors.bright}${colors.green}✅ Dependencies installed successfully${colors.reset}`);
+  } catch (error) {
+    console.error(`${colors.bright}${colors.red}❌ Failed to install dependencies${colors.reset}`);
+    console.error(error);
+    // Continue to build even if dependency installation fails
+  }
+} else {
+  console.log(`${colors.yellow}⚠️  Skipping dependency installation in dry-run mode${colors.reset}`);
 }
 
 // Ensure the shim directories exist
@@ -363,28 +374,121 @@ module.exports = console;`
   // Continue to build even if patching fails
 }
 
-// Run the build
-console.log(`${colors.bright}${colors.green}🏗️  Running Next.js build...${colors.reset}`);
-try {
-  execSync('npx next build', { stdio: 'inherit' });
-  console.log(`${colors.bright}${colors.green}✅ Build completed successfully${colors.reset}`);
-} catch (error) {
-  console.error(`${colors.bright}${colors.red}❌ Build failed${colors.reset}`);
-  console.error(error);
-  // Clean up temp files
-  if (fs.existsSync(tempEnvPath)) {
-    fs.unlinkSync(tempEnvPath);
+// Skip the actual build in dry-run mode
+if (isDryRun) {
+  console.log(`${colors.bright}${colors.yellow}⚠️ Skipping actual build in dry-run mode${colors.reset}`);
+  console.log(`${colors.cyan}Would run: npx next build${colors.reset}`);
+  
+  // Create a webpack test to check for module resolution issues
+  console.log(`${colors.bright}${colors.cyan}🧪 Running webpack module resolution test...${colors.reset}`);
+  
+  // Create a temporary Next.js page for testing
+  const testPageDir = path.join(process.cwd(), 'pages', '__netlify-test');
+  const testPagePath = path.join(testPageDir, 'index.js');
+  
+  if (!fs.existsSync(testPageDir)) {
+    fs.mkdirSync(testPageDir, { recursive: true });
   }
   
-  // Restore backup if it exists
-  if (fs.existsSync(envLocalBackupPath)) {
-    fs.copyFileSync(envLocalBackupPath, envLocalPath);
-    fs.unlinkSync(envLocalBackupPath);
-  } else if (fs.existsSync(envLocalPath)) {
-    fs.unlinkSync(envLocalPath);
+  // Create a test page that imports all problematic modules
+  const testPageContent = `
+// This is a temporary test page for checking module resolution
+import React from 'react';
+
+// Try importing a few problematic dependencies
+const importModules = async () => {
+  try {
+    // Firebase imports
+    const firebase = await import('@firebase/app');
+    const firestore = await import('@firebase/firestore');
+    
+    // Node.js core modules that might cause issues
+    const util = await import('util');
+    const buffer = await import('buffer');
+    
+    console.log('All modules imported successfully!');
+    return { success: true };
+  } catch (error) {
+    console.error('Module import error:', error);
+    return { success: false, error };
+  }
+};
+
+export default function NetlifyTest() {
+  const [testResult, setTestResult] = React.useState(null);
+  
+  React.useEffect(() => {
+    importModules().then(setTestResult);
+  }, []);
+  
+  if (!testResult) return <div>Testing module imports...</div>;
+  
+  return (
+    <div>
+      <h1>Netlify Test Page</h1>
+      {testResult.success ? (
+        <p style={{ color: 'green' }}>✅ All module imports successful!</p>
+      ) : (
+        <div>
+          <p style={{ color: 'red' }}>❌ Module import failed</p>
+          <pre>{testResult.error?.toString()}</pre>
+        </div>
+      )}
+    </div>
+  );
+}
+`;
+
+  fs.writeFileSync(testPagePath, testPageContent);
+  
+  try {
+    console.log(`${colors.cyan}Running Next.js webpack test build...${colors.reset}`);
+    execSync('npx next build --no-lint', {
+      stdio: 'inherit',
+      env: {
+        ...process.env,
+        SKIP_FULL_BUILD: 'true',
+        ANALYZE: 'false'
+      }
+    });
+    
+    console.log(`${colors.bright}${colors.green}✅ Webpack module resolution test passed${colors.reset}`);
+  } catch (error) {
+    console.error(`${colors.bright}${colors.red}❌ Webpack module resolution test failed${colors.reset}`);
+    console.error(error.message);
   }
   
-  process.exit(1);
+  // Clean up test page
+  try {
+    console.log(`${colors.cyan}Cleaning up test page...${colors.reset}`);
+    fs.rmSync(testPageDir, { recursive: true, force: true });
+  } catch (error) {
+    console.error(`${colors.red}❌ Failed to clean up test page: ${error.message}${colors.reset}`);
+  }
+} else {
+  // Run the build
+  console.log(`${colors.bright}${colors.green}🏗️  Running Next.js build...${colors.reset}`);
+  try {
+    execSync('npx next build', { stdio: 'inherit' });
+    console.log(`${colors.bright}${colors.green}✅ Build completed successfully${colors.reset}`);
+  } catch (error) {
+    console.error(`${colors.bright}${colors.red}❌ Build failed${colors.reset}`);
+    console.error(error);
+    // Clean up temp files
+    if (fs.existsSync(tempEnvPath)) {
+      fs.unlinkSync(tempEnvPath);
+    }
+    
+    // Restore backup if it exists
+    if (fs.existsSync(envLocalBackupPath)) {
+      fs.copyFileSync(envLocalBackupPath, envLocalPath);
+      fs.unlinkSync(envLocalBackupPath);
+    } else if (fs.existsSync(envLocalPath)) {
+      fs.unlinkSync(envLocalPath);
+    }
+    
+    process.exit(1);
+  }
 }
 
 // Clean up
@@ -401,4 +505,4 @@ if (fs.existsSync(envLocalBackupPath)) {
   fs.unlinkSync(envLocalPath);
 }
 
-console.log(`${colors.bright}${colors.green}🎉 Build process completed${colors.reset}`); 
+console.log(`${colors.bright}${colors.green}🎉 ${isDryRun ? 'Dry-run' : 'Build process'} completed${colors.reset}`); 
