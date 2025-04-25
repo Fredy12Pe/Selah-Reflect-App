@@ -114,6 +114,37 @@ try {
   // Continue to build even if dependency installation fails
 }
 
+// Patch undici issue with async_hooks
+try {
+  console.log(`${colors.bright}${colors.cyan}🔧 Patching undici for browser compatibility...${colors.reset}`);
+  
+  // Patching undici in @firebase/storage
+  const undiciPaths = [
+    './node_modules/@firebase/storage/node_modules/undici/lib/api/api-connect.js',
+    './node_modules/@firebase/storage/node_modules/undici/lib/api/api-upgrade.js'
+  ];
+
+  for (const filePath of undiciPaths) {
+    if (fs.existsSync(filePath)) {
+      console.log(`Patching ${filePath}...`);
+      let fileContent = fs.readFileSync(filePath, 'utf8');
+      
+      // Replace the async_hooks import with a shim
+      fileContent = fileContent.replace(
+        "const { asyncId, executionAsyncId } = require('async_hooks')",
+        "const asyncId = () => 1; const executionAsyncId = () => 1; // Shim for browser environment"
+      );
+      
+      fs.writeFileSync(filePath, fileContent);
+    }
+  }
+  console.log(`${colors.bright}${colors.green}✅ Undici patched successfully${colors.reset}`);
+} catch (error) {
+  console.error(`${colors.bright}${colors.red}❌ Failed to patch undici${colors.reset}`);
+  console.error(error);
+  // Continue to build even if patching fails
+}
+
 // Run the build
 console.log(`${colors.bright}${colors.green}🏗️  Running Next.js build...${colors.reset}`);
 try {

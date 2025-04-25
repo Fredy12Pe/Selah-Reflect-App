@@ -36,6 +36,7 @@ const nextConfig = {
         http: require.resolve('stream-http'),
         https: require.resolve('https-browserify'),
         os: require.resolve('os-browserify/browser'),
+        async_hooks: false, // Explicitly set async_hooks to false for client-side
       };
 
       // Force resolving Firebase dependencies for client builds
@@ -52,6 +53,10 @@ const nextConfig = {
     config.ignoreWarnings = [
       { module: /firebase/ },
       { file: /firebase/ },
+      { module: /undici/ },
+      { file: /undici/ },
+      { message: /Critical dependency: the request of a dependency is an expression/ },
+      { message: /Can't resolve 'async_hooks'/ },
     ];
 
     return config;
