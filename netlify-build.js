@@ -118,26 +118,73 @@ try {
 try {
   console.log(`${colors.bright}${colors.cyan}🔧 Patching Node.js dependencies for browser compatibility...${colors.reset}`);
   
-  // Create an empty stream/web.js file as a shim
-  const streamWebShimPath = path.join(process.cwd(), 'node_modules', 'stream', 'web.js');
-  const streamDirPath = path.join(process.cwd(), 'node_modules', 'stream');
-  
-  if (!fs.existsSync(streamDirPath)) {
-    fs.mkdirSync(streamDirPath, { recursive: true });
-  }
-  
-  // Create a basic shim for stream/web
-  const streamWebShim = `
+  // Create module shims for browser environment
+  const modulesToShim = [
+    {
+      path: path.join(process.cwd(), 'node_modules', 'stream', 'web.js'),
+      content: `
 // This is a shim for stream/web to allow builds to complete
 module.exports = {
   ReadableStream: class ReadableStream {},
   WritableStream: class WritableStream {},
   TransformStream: class TransformStream {},
-  // Add more exports as needed
-};
-`;
-  fs.writeFileSync(streamWebShimPath, streamWebShim);
-  console.log(`${colors.bright}${colors.green}✅ Created stream/web shim at ${streamWebShimPath}${colors.reset}`);
+  ByteLengthQueuingStrategy: class ByteLengthQueuingStrategy {},
+  CountQueuingStrategy: class CountQueuingStrategy {}
+};`
+    },
+    {
+      path: path.join(process.cwd(), 'node_modules', 'util', 'types.js'),
+      content: `
+// This is a shim for util/types to allow builds to complete
+module.exports = {
+  isArrayBufferView: () => false,
+  isUint8Array: () => false,
+  isUint16Array: () => false,
+  isUint32Array: () => false,
+  isInt8Array: () => false,
+  isInt16Array: () => false,
+  isInt32Array: () => false,
+  isFloat32Array: () => false,
+  isFloat64Array: () => false
+};`
+    },
+    {
+      path: path.join(process.cwd(), 'node_modules', 'worker_threads', 'index.js'),
+      content: `
+// This is a shim for worker_threads to allow builds to complete
+module.exports = {
+  Worker: class Worker {},
+  MessageChannel: class MessageChannel {},
+  MessagePort: class MessagePort {},
+  isMainThread: true
+};`
+    }
+  ];
+  
+  // Create all shim modules
+  for (const module of modulesToShim) {
+    const dirPath = path.dirname(module.path);
+    if (!fs.existsSync(dirPath)) {
+      fs.mkdirSync(dirPath, { recursive: true });
+    }
+    fs.writeFileSync(module.path, module.content);
+    console.log(`${colors.bright}${colors.green}✅ Created shim at ${module.path}${colors.reset}`);
+  }
+  
+  // Path for direct stream/web in root modules structure
+  const rootStreamWebPath = path.join(process.cwd(), 'stream', 'web.js');
+  const rootStreamDirPath = path.join(process.cwd(), 'stream');
+  
+  if (!fs.existsSync(rootStreamDirPath)) {
+    fs.mkdirSync(rootStreamDirPath, { recursive: true });
+  }
+  
+  // Copy the shim to root location too
+  fs.copyFileSync(
+    path.join(process.cwd(), 'node_modules', 'stream', 'web.js'),
+    rootStreamWebPath
+  );
+  console.log(`${colors.bright}${colors.green}✅ Created stream/web shim at root level ${rootStreamWebPath}${colors.reset}`);
   
   // Patching undici in @firebase/storage for async_hooks
   const undiciPaths = [
@@ -160,44 +207,86 @@ module.exports = {
     }
   }
   
-  // Check for stream/web imports in undici files
-  const undiciDir = './node_modules/@firebase/storage/node_modules/undici';
-  if (fs.existsSync(undiciDir)) {
-    // Find all JavaScript files
-    const findJsFiles = (dir, fileList = []) => {
-      const files = fs.readdirSync(dir);
-      for (const file of files) {
-        const filePath = path.join(dir, file);
-        const stat = fs.statSync(filePath);
-        if (stat.isDirectory()) {
-          findJsFiles(filePath, fileList);
-        } else if (file.endsWith('.js')) {
-          fileList.push(filePath);
-        }
-      }
-      return fileList;
-    };
+  // Process all JavaScript files in undici to fix path issues
+  const processDirectory = (dir, callback) => {
+    if (!fs.existsSync(dir)) return;
     
-    const jsFiles = findJsFiles(undiciDir);
-    for (const filePath of jsFiles) {
-      try {
-        let content = fs.readFileSync(filePath, 'utf8');
-        if (content.includes("require('stream/web')")) {
-          console.log(`Patching stream/web import in ${filePath}...`);
-          // Replace the require with our shim
-          content = content.replace(
-            "require('stream/web')",
-            "require('../../../stream/web')"
-          );
-          fs.writeFileSync(filePath, content);
-        }
-      } catch (e) {
-        console.error(`Error processing file ${filePath}: ${e.message}`);
+    const files = fs.readdirSync(dir);
+    for (const file of files) {
+      const filePath = path.join(dir, file);
+      const stat = fs.statSync(filePath);
+      
+      if (stat.isDirectory()) {
+        processDirectory(filePath, callback);
+      } else if (stat.isFile() && file.endsWith('.js')) {
+        callback(filePath);
       }
     }
+  };
+  
+  // Process files to fix imports
+  const processFile = (filePath) => {
+    try {
+      let content = fs.readFileSync(filePath, 'utf8');
+      let modified = false;
+      
+      // Fix stream/web imports
+      if (content.includes("require('stream/web')")) {
+        console.log(`Patching stream/web import in ${filePath}...`);
+        const relativePath = path.relative(path.dirname(filePath), process.cwd()).replace(/\\/g, '/');
+        // Use direct path to root stream/web
+        content = content.replace(
+          "require('stream/web')",
+          `require('${relativePath}/stream/web')`
+        );
+        modified = true;
+      }
+      
+      // Fix util/types imports
+      if (content.includes("require('util/types')")) {
+        console.log(`Patching util/types import in ${filePath}...`);
+        const relativePath = path.relative(path.dirname(filePath), process.cwd()).replace(/\\/g, '/');
+        content = content.replace(
+          "require('util/types')",
+          `require('${relativePath}/util/types')`
+        );
+        modified = true;
+      }
+      
+      // Fix worker_threads imports
+      if (content.includes("require('worker_threads')")) {
+        console.log(`Patching worker_threads import in ${filePath}...`);
+        const relativePath = path.relative(path.dirname(filePath), process.cwd()).replace(/\\/g, '/');
+        content = content.replace(
+          "require('worker_threads')",
+          `require('${relativePath}/worker_threads')`
+        );
+        modified = true;
+      }
+      
+      if (modified) {
+        fs.writeFileSync(filePath, content);
+      }
+    } catch (e) {
+      console.error(`Error processing file ${filePath}: ${e.message}`);
+    }
+  };
+  
+  // Process undici directory
+  const undiciDir = './node_modules/@firebase/storage/node_modules/undici';
+  if (fs.existsSync(undiciDir)) {
+    console.log(`${colors.cyan}Processing undici directory for module import fixes...${colors.reset}`);
+    processDirectory(undiciDir, processFile);
   }
   
-  console.log(`${colors.bright}${colors.green}✅ Undici patches applied successfully${colors.reset}`);
+  // Process firebase storage directory
+  const firebaseStorageDir = './node_modules/@firebase/storage';
+  if (fs.existsSync(firebaseStorageDir)) {
+    console.log(`${colors.cyan}Processing firebase storage directory for module import fixes...${colors.reset}`);
+    processDirectory(firebaseStorageDir, processFile);
+  }
+  
+  console.log(`${colors.bright}${colors.green}✅ Node.js module patches applied successfully${colors.reset}`);
 } catch (error) {
   console.error(`${colors.bright}${colors.red}❌ Failed to patch dependencies${colors.reset}`);
   console.error(error);

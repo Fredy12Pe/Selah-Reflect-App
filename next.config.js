@@ -38,6 +38,8 @@ const nextConfig = {
         os: require.resolve('os-browserify/browser'),
         async_hooks: false, // Explicitly set async_hooks to false for client-side
         'stream/web': false, // Add stream/web module
+        'util/types': false, // Add util/types module
+        'worker_threads': false, // Add worker_threads module
       };
 
       // Force resolving Firebase dependencies for client builds
@@ -59,6 +61,8 @@ const nextConfig = {
       { message: /Critical dependency: the request of a dependency is an expression/ },
       { message: /Can't resolve 'async_hooks'/ },
       { message: /Can't resolve 'stream\/web'/ },
+      { message: /Can't resolve 'util\/types'/ },
+      { message: /Can't resolve 'worker_threads'/ },
     ];
 
     return config;
