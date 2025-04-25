@@ -5,6 +5,7 @@ import { checkFirebaseConfig } from "@/lib/firebase/checkConfig";
 import { getApps, getApp, initializeApp } from "firebase/app";
 import { getAuth, signInWithPopup, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 import { firebaseConfig } from "@/lib/firebase/firebase";
 import { useAuth } from "@/lib/context/AuthContext";
 
@@ -23,6 +24,7 @@ export default function FirebaseTestPage() {
     app: false,
     auth: false,
     firestore: false,
+    storage: false,
   });
 
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +81,11 @@ export default function FirebaseTestPage() {
           console.log("Auth initialized");
         } catch (e) {
           console.error("Auth initialization error:", e);
-          setError(`Auth initialization failed: ${e.message}`);
+          setError(
+            `Auth initialization failed: ${
+              e instanceof Error ? e.message : String(e)
+            }`
+          );
         }
 
         // Try to initialize Firestore
@@ -90,7 +96,25 @@ export default function FirebaseTestPage() {
           console.log("Firestore initialized");
         } catch (e) {
           console.error("Firestore initialization error:", e);
-          setError(`Firestore initialization failed: ${e.message}`);
+          setError(
+            `Firestore initialization failed: ${
+              e instanceof Error ? e.message : String(e)
+            }`
+          );
+        }
+
+        // Try to initialize Storage
+        try {
+          const storage = getStorage();
+          setInitStatus((prev) => ({ ...prev, storage: true }));
+          console.log("Storage initialized");
+        } catch (e) {
+          console.error("Storage initialization error:", e);
+          setError(
+            `Storage initialization failed: ${
+              e instanceof Error ? e.message : String(e)
+            }`
+          );
         }
       } else {
         console.log("Firebase already initialized, checking services...");
@@ -107,14 +131,26 @@ export default function FirebaseTestPage() {
           const db = getFirestore(app);
           setInitStatus((prev) => ({ ...prev, firestore: true }));
           console.log("Found existing Firestore instance");
+
+          const storage = getStorage();
+          setInitStatus((prev) => ({ ...prev, storage: true }));
+          console.log("Found existing Storage instance");
         } catch (e) {
           console.error("Service check error:", e);
-          setError(`Service check failed: ${e.message}`);
+          setError(
+            `Service check failed: ${
+              e instanceof Error ? e.message : String(e)
+            }`
+          );
         }
       }
     } catch (e) {
       console.error("Configuration check error:", e);
-      setError(`Configuration check failed: ${e.message}`);
+      setError(
+        `Configuration check failed: ${
+          e instanceof Error ? e.message : String(e)
+        }`
+      );
     } finally {
       setLoading(false);
     }
@@ -232,6 +268,16 @@ export default function FirebaseTestPage() {
               }
             >
               {initStatus.firestore ? "✓ Initialized" : "✗ Not Initialized"}
+            </span>
+          </li>
+          <li>
+            Storage:
+            <span
+              className={
+                initStatus.storage ? "text-green-600 ml-2" : "text-red-600 ml-2"
+              }
+            >
+              {initStatus.storage ? "✓ Initialized" : "✗ Not Initialized"}
             </span>
           </li>
         </ul>

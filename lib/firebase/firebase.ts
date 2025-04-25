@@ -1,6 +1,7 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, browserLocalPersistence, setPersistence, onAuthStateChanged, User } from 'firebase/auth';
-import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
+import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
+import { getAuth, browserLocalPersistence, setPersistence, onAuthStateChanged, User, Auth } from 'firebase/auth';
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, Firestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 import { checkFirebaseConfig } from './checkConfig';
 
 // Log environment variables (without exposing sensitive values)
@@ -23,11 +24,12 @@ export const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-let app;
-let auth;
-let db;
+let app: FirebaseApp | undefined;
+let auth: Auth | undefined;
+let db: Firestore | undefined;
+let storage: any | undefined;
 
-export function getFirebaseApp() {
+export function getFirebaseApp(): FirebaseApp {
   const { hasIssues, issues, config } = checkFirebaseConfig();
   
   if (hasIssues) {
@@ -49,7 +51,7 @@ export function getFirebaseApp() {
   return app;
 }
 
-const initializeFirebase = async () => {
+const initializeFirebase = async (): Promise<FirebaseApp | null> => {
   if (typeof window === 'undefined') {
     console.log('Firebase: Skipping initialization on server side');
     return null;
@@ -100,6 +102,15 @@ const initializeFirebase = async () => {
       console.log('Firebase: Using existing Firestore instance');
     }
 
+    // Initialize Storage if needed
+    if (!storage) {
+      console.log('Firebase: Initializing Storage');
+      storage = getStorage(app);
+      console.log('Firebase: Storage initialized');
+    } else {
+      console.log('Firebase: Using existing Storage instance');
+    }
+
     // Set up auth state listener to handle token refresh
     onAuthStateChanged(auth, async (user: User | null) => {
       console.log('Auth state changed:', user ? `User ${user.uid} logged in` : 'User logged out');
@@ -132,11 +143,13 @@ if (typeof window !== 'undefined') {
   });
 }
 
-export function getFirebaseAuth() {
+export function getFirebaseAuth(): Auth {
   const app = getFirebaseApp();
   try {
-    const auth = getAuth(app);
-    console.log('Firebase auth initialized successfully');
+    if (!auth) {
+      auth = getAuth(app);
+      console.log('Firebase auth initialized successfully');
+    }
     return auth;
   } catch (error) {
     console.error('Error initializing Firebase auth:', error);
@@ -144,7 +157,7 @@ export function getFirebaseAuth() {
   }
 }
 
-export function getFirebaseDb() {
+export function getFirebaseDb(): Firestore {
   if (!db) {
     const app = getFirebaseApp();
     try {
@@ -160,4 +173,18 @@ export function getFirebaseDb() {
     }
   }
   return db;
+}
+
+export function getFirebaseStorage(): any {
+  if (!storage) {
+    const app = getFirebaseApp();
+    try {
+      storage = getStorage(app);
+      console.log('Firebase storage initialized successfully');
+    } catch (error) {
+      console.error('Error initializing Firebase storage:', error);
+      throw error;
+    }
+  }
+  return storage;
 } 

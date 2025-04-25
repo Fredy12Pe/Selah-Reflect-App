@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { isBrowser, shouldSkipFirebaseInit } from '@/lib/utils/environment';
+
+// Check if we're in a build environment
+const isBuildEnv = !isBrowser && process.env.NEXT_PUBLIC_IS_NETLIFY_BUILD === 'true';
 
 // Initialize the OpenAI client
 const openai = new OpenAI({
-  apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY
+  apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY,
 });
 
 interface ResourceItem {
@@ -115,6 +119,42 @@ const GUARANTEED_RESOURCES = {
   ]
 };
 
+// Mock resources for build time
+const mockResources = {
+  commentaries: [
+    {
+      title: "Matthew Henry's Commentary",
+      author: "Matthew Henry",
+      description: "A mock commentary entry for build-time rendering",
+      link: "#"
+    }
+  ],
+  videos: [
+    {
+      title: "Bible Project Overview",
+      author: "Bible Project",
+      description: "A mock video resource for build-time rendering",
+      link: "#"
+    }
+  ],
+  books: [
+    {
+      title: "Mere Christianity",
+      author: "C.S. Lewis",
+      description: "A mock book resource for build-time rendering",
+      link: "#"
+    }
+  ],
+  podcasts: [
+    {
+      title: "The Bible Recap",
+      author: "D-Group",
+      description: "A mock podcast resource for build-time rendering",
+      link: "#"
+    }
+  ]
+};
+
 /**
  * Check if a URL is likely to be valid based on domain
  */
@@ -152,171 +192,111 @@ function getGuaranteedResources(type: 'commentary' | 'video' | 'podcast' | 'book
     
     if (url && url !== 'https://biblehub.com/commentaries/') {
       // Add a specific commentary for this verse
+      const specificResource: ResourceItem = {
+        title: `${verse} Commentary`,
+        author: 'Various Biblical Scholars',
+        description: `Commentary collection specifically for ${verse} with multiple scholarly perspectives.`,
+        url,
+        type: 'commentary'
+      };
+      
       return [
-        {
-          title: `${verse} Commentary`,
-          author: 'Various Biblical Scholars',
-          description: `Commentary collection specifically for ${verse} with multiple scholarly perspectives.`,
-          url,
-          type: 'commentary'
-        },
-        ...baseResources
+        specificResource,
+        ...baseResources as ResourceItem[]
       ];
     }
   }
   
-  return baseResources;
+  return baseResources as ResourceItem[];
 }
+
+// Function to safely handle API routes during build time
+const safelyHandleRequest = async (handler: () => Promise<Response>): Promise<Response> => {
+  // If we're in build environment, return a mock response
+  if (isBuildEnv) {
+    console.log('[BUILD] Returning mock response for resources API during build');
+    return new Response(JSON.stringify(mockResources), {
+      headers: { 'Content-Type': 'application/json' },
+      status: 200
+    });
+  }
+  
+  // Otherwise, proceed with normal handler
+  return await handler();
+};
 
 /**
  * Handle POST requests to generate scripture resources
  */
 export async function POST(req: Request) {
-  try {
-    // Parse request body
-    const { verse } = await req.json();
-
-    // Validate inputs
-    if (!verse) {
+  return safelyHandleRequest(async () => {
+    try {
+      // Parse request body
+      const { passage } = await req.json();
+      
+      // Validate inputs
+      if (!passage) {
+        return NextResponse.json(
+          { error: 'Missing required field: passage' },
+          { status: 400 }
+        );
+      }
+      
+      // Make request to OpenAI
+      const response = await openai.chat.completions.create({
+        model: "gpt-3.5-turbo",
+        messages: [
+          {
+            role: "system",
+            content: `You are a Bible resource expert. Your purpose is to suggest high-quality Christian resources
+            related to a given Bible passage. For each resource category, provide 1-3 relevant, real resources that 
+            would help someone understand the passage better. Include title, author, a brief description, and a link 
+            (use '#' if no specific link is available).
+            
+            FORMAT YOUR RESPONSE AS VALID JSON with these categories:
+            {
+              "commentaries": [{"title": "...", "author": "...", "description": "...", "link": "..."}],
+              "videos": [{"title": "...", "author": "...", "description": "...", "link": "..."}],
+              "books": [{"title": "...", "author": "...", "description": "...", "link": "..."}],
+              "podcasts": [{"title": "...", "author": "...", "description": "...", "link": "..."}]
+            }
+            
+            For videos, prioritize resources from The Bible Project, GotQuestions, and similar reputable channels.
+            For commentaries, include classic works (Matthew Henry, etc.) and modern scholarly resources.
+            For books, suggest titles that provide deeper theological understanding of the passage's themes.
+            For podcasts, suggest episodes or series that address the passage's context or application.`
+          },
+          {
+            role: "user",
+            content: `Bible passage: "${passage}"
+            
+            Please provide a structured JSON response with resource recommendations for this passage.`
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 1000,
+        response_format: { type: "json_object" }
+      });
+      
+      // Extract the generated resources
+      const resourcesText = response.choices[0]?.message?.content?.trim() || "{}";
+      
+      try {
+        const resources = JSON.parse(resourcesText);
+        return NextResponse.json(resources);
+      } catch (jsonError) {
+        console.error('Error parsing resources JSON:', jsonError, resourcesText);
+        return NextResponse.json(
+          { error: 'Failed to parse resources data' },
+          { status: 500 }
+        );
+      }
+    } catch (error: any) {
+      console.error('Error generating resources:', error);
       return NextResponse.json(
-        { error: 'Missing required field: verse' },
-        { status: 400 }
+        { error: error.message || 'Failed to generate resources' },
+        { status: 500 }
       );
     }
-
-    // Make request to OpenAI
-    const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        {
-          role: "system",
-          content: `You are a helpful biblical research assistant. Your task is to provide RELIABLE resources related to scripture passages.
-          
-          Return a structured JSON with these EXACT categories:
-          1. commentaries: Array of online commentary resources (WEB-BASED only, NOT books)
-          2. videos: Array of video resources 
-          3. podcasts: Array of podcast resources
-          4. books: Array of book resources
-          
-          Each resource MUST include: 
-          - title: string (required)
-          - author: string (if applicable)
-          - description: string (1-2 sentences, required)
-          - url: string (MUST be a real, working URL)
-          
-          MOST IMPORTANT RULES:
-          - ONLY use URLs that you are 100% CERTAIN exist and work
-          - DO NOT make up or guess ANY URLs
-          - If unsure about a URL, use ONLY these domains:
-             - For commentaries: biblehub.com, blueletterbible.org, biblegateway.com
-             - For videos: youtube.com or bibleproject.com
-             - For podcasts: spotify.com, apple.com/podcasts, or bibleproject.com
-             - For books: amazon.com
-          - VERIFY each URL is correctly formatted
-          - NEVER invent specific YouTube video IDs
-          - NEVER create paths that don't exist
-          - For videos, use ONLY general YouTube channel URLs or search URLs
-          - For commentaries, use ONLY the main Bible website URLs
-          - ALL URLs MUST START with http:// or https://
-          - If you cannot provide a working URL, use ONLY these:
-             - Commentaries: https://biblehub.com/commentaries/
-             - Videos: https://www.youtube.com/results?search_query=bible+study
-             - Podcasts: https://podcasts.apple.com/us/genre/podcasts-religion-spirituality-christianity/id1439
-             - Books: https://www.amazon.com/s?k=bible+commentary
-          
-          Format response as valid JSON with exact keys: commentaries, videos, podcasts, books.
-          `
-        },
-        {
-          role: "user",
-          content: `Please provide reliable, working resources for studying and understanding this Bible passage: ${verse}`
-        }
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.3,
-      max_tokens: 1000
-    });
-
-    // Extract the generated text and parse as JSON
-    const resourcesText = response.choices[0]?.message?.content || '{"commentaries":[],"videos":[],"podcasts":[],"books":[]}';
-    let resources;
-    
-    try {
-      resources = JSON.parse(resourcesText);
-      
-      // For each category, validate URLs and replace with guaranteed working ones if needed
-      if (!resources.commentaries || !Array.isArray(resources.commentaries) || resources.commentaries.length === 0) {
-        resources.commentaries = getGuaranteedResources('commentary', verse);
-      } else {
-        // Filter to valid URLs, then add at least one guaranteed resource
-        const validCommentaries = resources.commentaries
-          .filter(item => item.url && isLikelyValidUrl(item.url))
-          .slice(0, 2); // Keep only up to 2 AI-suggested resources
-          
-        resources.commentaries = [
-          ...validCommentaries,
-          ...getGuaranteedResources('commentary', verse).slice(0, 2 - validCommentaries.length)
-        ];
-      }
-      
-      if (!resources.videos || !Array.isArray(resources.videos) || resources.videos.length === 0) {
-        resources.videos = getGuaranteedResources('video', verse);
-      } else {
-        const validVideos = resources.videos
-          .filter(item => item.url && isLikelyValidUrl(item.url))
-          .slice(0, 2);
-          
-        resources.videos = [
-          ...validVideos,
-          ...getGuaranteedResources('video', verse).slice(0, 2 - validVideos.length)
-        ];
-      }
-      
-      if (!resources.podcasts || !Array.isArray(resources.podcasts) || resources.podcasts.length === 0) {
-        resources.podcasts = getGuaranteedResources('podcast', verse);
-      } else {
-        const validPodcasts = resources.podcasts
-          .filter(item => item.url && isLikelyValidUrl(item.url))
-          .slice(0, 2);
-          
-        resources.podcasts = [
-          ...validPodcasts,
-          ...getGuaranteedResources('podcast', verse).slice(0, 2 - validPodcasts.length)
-        ];
-      }
-      
-      if (!resources.books || !Array.isArray(resources.books) || resources.books.length === 0) {
-        resources.books = getGuaranteedResources('book', verse);
-      } else {
-        const validBooks = resources.books
-          .filter(item => item.url && isLikelyValidUrl(item.url))
-          .slice(0, 2);
-          
-        resources.books = [
-          ...validBooks,
-          ...getGuaranteedResources('book', verse).slice(0, 2 - validBooks.length)
-        ];
-      }
-      
-    } catch (error) {
-      console.error('Error parsing JSON from OpenAI:', error);
-      console.log('Raw response:', resourcesText);
-      
-      // Provide fallback with guaranteed working resources
-      resources = {
-        commentaries: getGuaranteedResources('commentary', verse),
-        videos: getGuaranteedResources('video', verse),
-        podcasts: getGuaranteedResources('podcast', verse),
-        books: getGuaranteedResources('book', verse)
-      };
-    }
-
-    return NextResponse.json(resources);
-  } catch (error: any) {
-    console.error('Error in resources API:', error);
-    return NextResponse.json(
-      { error: error.message || 'Failed to fetch resources' },
-      { status: 500 }
-    );
-  }
+  });
 } 

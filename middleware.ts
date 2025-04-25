@@ -11,7 +11,8 @@ const PUBLIC_PATHS = [
   "/images",
 ]
 
-export async function middleware(request: NextRequest) {
+// This middleware ensures proper handling of auth and dynamic routes on Netlify
+export function middleware(request: NextRequest) {
   console.log('[Middleware] Processing request for:', request.nextUrl.pathname);
 
   // Check if the path is public
@@ -40,15 +41,10 @@ export async function middleware(request: NextRequest) {
   return NextResponse.next();
 }
 
+// Configure paths that need SSR handling
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public (public files)
-     */
-    '/((?!_next/static|_next/image|favicon.ico|public).*)',
+    // Skip static files and API routes
+    '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 } 

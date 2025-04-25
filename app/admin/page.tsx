@@ -51,6 +51,16 @@ export default function AdminDashboard() {
           </Link>
 
           <Link
+            href="/admin/generate-devotions"
+            className="block p-6 bg-zinc-900 rounded-xl hover:bg-zinc-800 transition-colors"
+          >
+            <h2 className="text-xl font-semibold mb-2">Generate Devotions</h2>
+            <p className="text-gray-400">
+              Auto-generate devotions for multiple dates
+            </p>
+          </Link>
+
+          <Link
             href="/admin/users"
             className="block p-6 bg-zinc-900 rounded-xl hover:bg-zinc-800 transition-colors"
           >

@@ -1,9 +1,10 @@
 "use client";
 
-import { initializeApp, getApps } from 'firebase/app';
+import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, Auth } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL, Storage } from 'firebase/storage';
+import { isBrowser, shouldSkipFirebaseInit } from '@/lib/utils/environment';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -14,15 +15,33 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase
-let app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-let auth = getAuth(app);
-let db = getFirestore(app);
-let storage = getStorage(app);
+// Initialize Firebase only in browser environment
+let app: FirebaseApp | undefined = undefined;
+let auth: Auth | undefined = undefined;
+let db: Firestore | undefined = undefined;
+let storage: Storage | undefined = undefined;
+
+// Safe initialization only in browser environment
+if (isBrowser && !shouldSkipFirebaseInit) {
+  try {
+    app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+    auth = getAuth(app);
+    db = getFirestore(app);
+    storage = getStorage(app);
+    console.log('Firebase client initialized successfully');
+  } catch (error) {
+    console.error('Error initializing Firebase client:', error);
+  }
+}
 
 export { app, auth, db, storage };
 
-export const getFirebaseAuth = () => {
+export const getFirebaseAuth = (): Auth | null => {
+  if (shouldSkipFirebaseInit || !isBrowser) {
+    console.log('Firebase Auth access skipped during build or server rendering');
+    return null;
+  }
+  
   if (!auth) {
     app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
     auth = getAuth(app);
@@ -30,7 +49,12 @@ export const getFirebaseAuth = () => {
   return auth;
 };
 
-export const getFirebaseDb = () => {
+export const getFirebaseDb = (): Firestore | null => {
+  if (shouldSkipFirebaseInit || !isBrowser) {
+    console.log('Firebase Firestore access skipped during build or server rendering');
+    return null;
+  }
+  
   if (!db) {
     app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
     db = getFirestore(app);
@@ -38,7 +62,12 @@ export const getFirebaseDb = () => {
   return db;
 };
 
-export const getFirebaseStorage = () => {
+export const getFirebaseStorage = (): Storage | null => {
+  if (shouldSkipFirebaseInit || !isBrowser) {
+    console.log('Firebase Storage access skipped during build or server rendering');
+    return null;
+  }
+  
   if (!storage) {
     app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
     storage = getStorage(app);
@@ -46,7 +75,12 @@ export const getFirebaseStorage = () => {
   return storage;
 };
 
-export const getGoogleAuthProvider = () => {
+export const getGoogleAuthProvider = (): GoogleAuthProvider | null => {
+  if (shouldSkipFirebaseInit || !isBrowser) {
+    console.log('Google Auth Provider access skipped during build or server rendering');
+    return null;
+  }
+  
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ 
     prompt: 'select_account',
@@ -58,7 +92,14 @@ export const getGoogleAuthProvider = () => {
 
 // Storage utility functions
 export const uploadDevotionPDF = async (date: string, file: File): Promise<string> => {
+  if (shouldSkipFirebaseInit || !isBrowser) {
+    console.log('Storage operation skipped during build or server rendering');
+    return '#';
+  }
+  
   const storage = getFirebaseStorage();
+  if (!storage) throw new Error('Storage not initialized');
+  
   const devotionsRef = ref(storage, `devotions/${date}.pdf`);
   
   try {
@@ -72,7 +113,14 @@ export const uploadDevotionPDF = async (date: string, file: File): Promise<strin
 };
 
 export const getDevotionPDFUrl = async (date: string): Promise<string> => {
+  if (shouldSkipFirebaseInit || !isBrowser) {
+    console.log('Storage operation skipped during build or server rendering');
+    return '#';
+  }
+  
   const storage = getFirebaseStorage();
+  if (!storage) throw new Error('Storage not initialized');
+  
   const devotionsRef = ref(storage, `devotions/${date}.pdf`);
   
   try {

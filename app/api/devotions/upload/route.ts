@@ -43,13 +43,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Ensure exactly 2 reflection questions
-    if (!Array.isArray(devotionData.reflectionQuestions) || devotionData.reflectionQuestions.length !== 2) {
+    // Ensure reflection questions are provided
+    if (!Array.isArray(devotionData.reflectionQuestions) || devotionData.reflectionQuestions.length < 1) {
       return NextResponse.json(
-        { error: 'Must provide exactly 2 reflection questions' },
+        { error: 'Must provide at least one reflection question' },
         { status: 400 }
       );
     }
+
+    // Create reflection sections from the scripture reference and questions
+    const reflectionSections = [{
+      passage: devotionData.scriptureReference,
+      questions: devotionData.reflectionQuestions || []
+    }];
 
     // Format the devotion data
     const formattedDevotion: Devotion = {
@@ -57,10 +63,11 @@ export async function POST(request: NextRequest) {
       title: devotionData.title,
       scriptureReference: devotionData.scriptureReference,
       scriptureText: devotionData.scriptureText,
-      reflectionQuestions: [
-        { question: devotionData.reflectionQuestions[0].question },
-        { question: devotionData.reflectionQuestions[1].question }
-      ]
+      content: devotionData.content,
+      prayer: devotionData.prayer,
+      bibleText: devotionData.scriptureReference, // Using scriptureReference as bibleText
+      reflectionSections: reflectionSections,
+      reflectionQuestions: devotionData.reflectionQuestions
     };
 
     // Save to Firestore

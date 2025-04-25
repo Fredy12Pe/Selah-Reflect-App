@@ -184,3 +184,123 @@ To use the application:
 - **OpenAI API Key**: Sign up at [OpenAI Platform](https://platform.openai.com/) to get your API key for the Reflect with AI feature.
 - **Unsplash API Key**: Sign up at [Unsplash Developers](https://unsplash.com/developers) to get your API key for background images.
 - **Firebase**: Set up a project in the [Firebase Console](https://console.firebase.google.com/).
+
+## Dynamic Background Images with Unsplash API
+
+The app uses Unsplash API to display beautiful, relevant background images for each devotion. To set this up:
+
+1. Sign up for a free Unsplash Developer account at [https://unsplash.com/developers](https://unsplash.com/developers)
+2. Create a new application and copy your Access Key
+3. Add the key to your `.env.local` file:
+   ```
+   NEXT_PUBLIC_UNSPLASH_ACCESS_KEY=your_unsplash_access_key_here
+   ```
+
+Even without an API key, the app will fall back to using Unsplash's source URLs which don't require API authentication but have more limited functionality.
+
+### Using the DynamicBackground Component
+
+The app includes a `DynamicBackground` component that can be used in your own pages:
+
+```tsx
+import DynamicBackground from "@/app/components/DynamicBackground";
+
+export default function MyPage() {
+  return (
+    <DynamicBackground
+      date="2024-04-28"
+      query="bible,nature,mountains"
+      showAttribution={true}
+      className="h-screen flex flex-col"
+    >
+      {/* Your content here */}
+      <h1 className="text-white text-4xl">Hello World</h1>
+    </DynamicBackground>
+  );
+}
+```
+
+Available props:
+
+- `date`: ISO date string (YYYY-MM-DD) - used to ensure same image shown all day
+- `query`: Search terms for images (comma-separated)
+- `overlayOpacity`: Darkness of overlay (0-1, default: 0.6)
+- `imageType`: Type of image ('devotion', 'hymn', 'resources')
+- `showAttribution`: Whether to show image attribution
+- `priority`: Whether image should have loading priority
+- `useApi`: Whether to use Unsplash API (requires key) or direct URLs
+- `className`: Additional CSS classes
+
+## Deployment to Netlify
+
+The app is configured to deploy to Netlify with special handling for Firebase and SSR/SSG issues.
+
+### Option 1: Using the Deployment Script (Recommended)
+
+Simply run:
+
+```
+npm run deploy       # For a preview deployment
+npm run deploy:prod  # For production deployment
+```
+
+The script will:
+
+- Build your application with special handling for Firebase
+- Check if you're logged in to Netlify
+- Guide you through the site setup process if needed
+- Deploy your application
+
+### Option 2: Deploy via Netlify UI
+
+1. Push your code to a Git repository (GitHub, GitLab, or Bitbucket)
+
+2. Log in to your Netlify account and click "New site from Git"
+
+3. Select your repository and configure build settings:
+
+   - Build command: `node netlify-build.js`
+   - Publish directory: `.next`
+
+4. Click "Deploy site"
+
+### Firebase and Netlify Build Issues
+
+This project includes special handling for common Firebase initialization issues during Netlify builds. The custom build script (`netlify-build.js`) creates a temporary environment that prevents Firebase services from initializing during the static generation phase, which avoids "Service storage is not available" errors commonly seen when deploying Firebase apps to Netlify.
+
+### Environment Variables
+
+Make sure to set these environment variables in the Netlify UI:
+
+- `NEXT_PUBLIC_FIREBASE_API_KEY`
+- `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
+- `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
+- `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`
+- `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
+- `NEXT_PUBLIC_FIREBASE_APP_ID`
+- `NEXT_PUBLIC_UNSPLASH_ACCESS_KEY`
+- Any other environment variables your application uses
+
+## PWA Features
+
+The app is configured as a Progressive Web App and can be installed on mobile devices:
+
+- On iOS: Use the "Add to Home Screen" option in the share menu
+- On Android: Tap "Install App" when prompted or use "Add to Home Screen" in the browser menu
+- On desktop: Look for the install icon in the address bar
+
+## Development
+
+```
+npm install
+npm run dev
+```
+
+## Building Icons
+
+To regenerate the PWA icons and splash screen:
+
+```
+node scripts/generate-icons.js
+node scripts/generate-splash.js
+```

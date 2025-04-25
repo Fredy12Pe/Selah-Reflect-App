@@ -23,6 +23,8 @@ export default function DevotionsAdminPage() {
       content: "",
       prayer: "",
       reflectionQuestions: [""],
+      bibleText: "",
+      reflectionSections: [],
     }
   );
 

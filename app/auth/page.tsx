@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { getFirebaseAuth, getGoogleAuthProvider } from "@/lib/firebase";
 import {
@@ -11,6 +11,13 @@ import {
 } from "firebase/auth";
 import Image from "next/image";
 import { format } from "date-fns";
+import { isBrowser } from "@/lib/utils/environment";
+
+// Mock function for build time
+const mockRedirect = () => {
+  console.log("Mock redirect during build");
+  return Promise.resolve();
+};
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -18,7 +25,26 @@ export default function Auth() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
+  const [isMounted, setIsMounted] = useState(false);
   const router = useRouter();
+
+  // Wait for client-side mount to avoid hydration issues
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Exit early during server-side rendering or static generation
+  if (!isMounted && !isBrowser) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex flex-col justify-center px-6">
+        <div className="max-w-md w-full mx-auto">
+          <h2 className="text-center text-3xl font-extrabold text-gray-900 mb-8">
+            Loading...
+          </h2>
+        </div>
+      </div>
+    );
+  }
 
   const redirectToDevotionPage = () => {
     const today = format(new Date(), "yyyy-MM-dd");
@@ -70,6 +96,12 @@ export default function Auth() {
     try {
       const auth = getFirebaseAuth();
       const provider = getGoogleAuthProvider();
+
+      if (!auth || !provider) {
+        setError("Authentication services not initialized");
+        return;
+      }
+
       const result = await signInWithPopup(auth, provider);
       await setSessionAndRedirect(result.user);
     } catch (err: any) {

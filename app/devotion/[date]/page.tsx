@@ -7,6 +7,11 @@ import { useAuth } from "@/lib/context/AuthContext";
 import { getFirebaseDb } from "@/lib/firebase/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { toast, Toaster } from "react-hot-toast";
+import {
+  getDailyDevotionImage,
+  UnsplashImage,
+} from "@/lib/services/unsplashService";
+import DynamicBackground from "@/app/components/DynamicBackground";
 
 interface DevotionData {
   date: string;
@@ -178,22 +183,14 @@ export default function DevotionPage({ params }: { params: { date: string } }) {
   console.log("Bible verse state:", bibleVerse);
 
   return (
-    <div className={`h-screen flex flex-col overflow-hidden`}>
+    <DynamicBackground
+      date={params.date}
+      query="landscape mountains sunset forest"
+      showAttribution={true}
+      overlayOpacity={0.7}
+      className="h-screen flex flex-col overflow-hidden"
+    >
       <Toaster position="top-center" />
-
-      {/* Background Image */}
-      <div className="fixed inset-0 -z-10">
-        <Image
-          src="/images/background.jpg"
-          alt="Background"
-          fill
-          className="object-cover"
-          priority
-          sizes="100vw"
-          quality={90}
-        />
-        <div className="absolute inset-0 bg-black/60" />
-      </div>
 
       {/* Content */}
       <div className="relative z-10 flex flex-col h-full">
@@ -212,14 +209,14 @@ export default function DevotionPage({ params }: { params: { date: string } }) {
         </div>
 
         {/* Scripture Box - Full Width Background */}
-        <div className="flex-1 mt-12 bg-black/40 backdrop-blur-sm rounded-t-3xl flex flex-col min-h-0">
+        <div className="flex-1 mt-12 bg-black/50 backdrop-blur-md rounded-t-3xl flex flex-col min-h-0">
           {/* Content Container - Constrained Width */}
           <div className="max-w-lg mx-auto w-full p-8 flex flex-col min-h-0">
             {/* Scripture Reference - Fixed */}
             <h2 className="text-2xl font-bold text-white flex-none mb-6">
               {bibleVerse?.reference ||
-                devotion.bibleText ||
-                devotion.scriptureReference}
+                devotion?.bibleText ||
+                devotion?.scriptureReference}
             </h2>
 
             {/* Scripture Text - Scrollable */}
@@ -232,17 +229,17 @@ export default function DevotionPage({ params }: { params: { date: string } }) {
                   bibleVerse.verses.map((verse) => (
                     <p
                       key={verse.verse}
-                      className="text-lg leading-relaxed text-white/90"
+                      className="text-lg leading-relaxed text-white/95"
                     >
-                      <span className="text-white/50 text-sm align-super mr-2">
+                      <span className="text-white/60 text-sm align-super mr-2">
                         {verse.verse}
                       </span>
                       {verse.text}
                     </p>
                   ))
                 ) : (
-                  <p className="text-lg leading-relaxed text-white/90">
-                    {devotion.scriptureText || "Loading scripture text..."}
+                  <p className="text-lg leading-relaxed text-white/95">
+                    {devotion?.scriptureText || "Loading scripture text..."}
                   </p>
                 )}
               </div>
@@ -273,6 +270,6 @@ export default function DevotionPage({ params }: { params: { date: string } }) {
           </div>
         </div>
       </div>
-    </div>
+    </DynamicBackground>
   );
 }

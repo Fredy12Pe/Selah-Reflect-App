@@ -13,7 +13,7 @@
  * Example: /devotion/2024-03-19/reflection
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   format,
@@ -37,6 +37,9 @@ import {
 import { getDevotionByDate } from "@/lib/services/devotionService";
 import { Devotion } from "@/lib/types/devotion";
 import { toast } from "react-hot-toast";
+import { getDailyDevotionImage } from "@/lib/services/unsplashService";
+import DynamicBackground from "@/app/components/DynamicBackground";
+import BackgroundCard from "@/app/components/BackgroundCard";
 
 // Bible verse interface
 interface BibleVerse {
@@ -147,6 +150,8 @@ export default function ReflectionPage({
   const [devotionData, setDevotionData] = useState<Devotion | null>(null);
   const currentDate = parseISO(params.date);
   const today = new Date();
+  const calendarRef = useRef<HTMLDivElement>(null);
+  const dateButtonRef = useRef<HTMLButtonElement>(null);
 
   // Image states
   const [hymnImage, setHymnImage] = useState("/hymn-bg.jpg");
@@ -257,6 +262,32 @@ export default function ReflectionPage({
     setQuestion("");
     setAiError("");
   }, [params.date, user]);
+
+  // Load background images for modals from Unsplash
+  useEffect(() => {
+    const loadImages = async () => {
+      try {
+        // Get image for hymn modal
+        const hymn = await getDailyDevotionImage(
+          params.date,
+          "landscape,mountains,sunrise,peaceful"
+        );
+        if (hymn) setHymnImage(hymn);
+
+        // Get image for resources modal
+        const resources = await getDailyDevotionImage(
+          params.date,
+          "landscape,forest,lake,sunset"
+        );
+        if (resources) setResourcesImage(resources);
+      } catch (error) {
+        console.error("Error loading background images:", error);
+        // Keep default images if there's an error
+      }
+    };
+
+    loadImages();
+  }, [params.date]);
 
   // Function to handle navigation
   const handleDateChange = async (newDate: Date) => {
@@ -551,6 +582,30 @@ export default function ReflectionPage({
     }
   };
 
+  // Handle clicks outside the calendar to close it
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        showCalendar &&
+        calendarRef.current &&
+        !calendarRef.current.contains(event.target as Node) &&
+        dateButtonRef.current &&
+        !dateButtonRef.current.contains(event.target as Node)
+      ) {
+        setShowCalendar(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showCalendar]);
+
+  const toggleCalendar = () => {
+    setShowCalendar(!showCalendar);
+  };
+
   if (!user) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
@@ -573,7 +628,8 @@ export default function ReflectionPage({
         </button>
 
         <button
-          onClick={() => setShowCalendar(true)}
+          ref={dateButtonRef}
+          onClick={toggleCalendar}
           className="px-8 py-2 rounded-full bg-zinc-800/50 hover:bg-zinc-700/50 transition-all flex items-center gap-2"
         >
           <span className="text-lg">{format(currentDate, "EEEE, MMMM d")}</span>
@@ -581,7 +637,7 @@ export default function ReflectionPage({
         </button>
 
         {showCalendar && (
-          <div className="absolute top-full mt-2 z-50">
+          <div ref={calendarRef} className="absolute top-full mt-2 z-50">
             <DatePicker
               selected={currentDate}
               onChange={(date: Date | null) => {
@@ -612,15 +668,14 @@ export default function ReflectionPage({
         ) : (
           <>
             {/* Hymn of the Month */}
-            <div
-              className="relative overflow-hidden rounded-3xl aspect-[2/1] bg-navy-900 cursor-pointer"
+            <BackgroundCard
+              date={params.date}
+              query="landscape mountains sunrise peaceful"
+              height="200px"
+              className="w-full cursor-pointer rounded-3xl"
               onClick={() => setShowHymnModal(true)}
+              imageType="hymn"
             >
-              <img
-                src={`https://images.unsplash.com/photo-1445543949571-ffc3e0e2f55e?w=1200&v=${hymnParam}`}
-                alt="Hymn background"
-                className="absolute inset-0 w-full h-full object-cover"
-              />
               <div className="absolute inset-0 bg-gradient-to-b from-blue-900/60 to-black/80" />
               <div className="relative p-6 flex flex-col justify-end h-full">
                 <p className="text-lg font-medium mb-2">Hymn of the Month:</p>
@@ -628,7 +683,7 @@ export default function ReflectionPage({
                   When I survey the Wondrous Cross
                 </h2>
               </div>
-            </div>
+            </BackgroundCard>
 
             {/* Today's Scripture */}
             <div>
@@ -720,15 +775,13 @@ export default function ReflectionPage({
 
             {/* Resources */}
             <div onClick={handleOpenResourcesModal} className="cursor-pointer">
-              <div
-                className="relative overflow-hidden rounded-2xl"
-                style={{ height: "150px" }}
+              <BackgroundCard
+                date={params.date}
+                query="landscape forest lake sunset"
+                height="150px"
+                className="rounded-2xl"
+                imageType="resources"
               >
-                <img
-                  src={`https://images.unsplash.com/photo-1504052434569-70ad5836ab65?w=1200&v=${resourceParam}`}
-                  alt="Bible study resources"
-                  className="absolute inset-0 w-full h-full object-cover"
-                />
                 <div className="absolute inset-0 bg-gradient-to-br from-black/70 via-purple-900/70 to-black/80 hover:opacity-90 transition-opacity" />
                 <div className="relative p-6">
                   <h3 className="text-2xl font-semibold mb-2">
@@ -738,13 +791,13 @@ export default function ReflectionPage({
                     Bible Commentaries, Videos, and Podcasts
                   </p>
                 </div>
-              </div>
+              </BackgroundCard>
             </div>
           </>
         )}
       </div>
 
-      {/* Hymn Lyrics Modal */}
+      {/* Hymn Modal */}
       {showHymnModal && (
         <div
           className={`fixed inset-0 z-50 flex items-end justify-center bg-black/80 ${
@@ -783,9 +836,9 @@ export default function ReflectionPage({
               </button>
             </div>
 
-            <div className="space-y-6">
-              <p className="text-gray-400 italic">By Isaac Watts, 1707</p>
+            <p className="text-gray-400 italic mb-6">By Isaac Watts, 1707</p>
 
+            <div className="space-y-6">
               {hymnLyrics.map((verse) => (
                 <div key={verse.verse} className="space-y-1.5">
                   <p className="text-gray-400 font-medium">

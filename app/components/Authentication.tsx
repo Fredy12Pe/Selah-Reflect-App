@@ -7,6 +7,7 @@ import { getFirebaseAuth, getGoogleAuthProvider } from "@/lib/firebase";
 import { signInWithPopup, AuthError } from "firebase/auth";
 import toast, { Toaster } from "react-hot-toast";
 import { format } from "date-fns";
+import { isBrowser } from "@/lib/utils/environment";
 
 const SIGN_IN_COOLDOWN = 2000; // 2 seconds cooldown between sign-in attempts
 let lastSignInAttempt = 0;
@@ -60,6 +61,12 @@ export default function Authentication() {
   }, [router]);
 
   const signInWithGoogle = useCallback(async () => {
+    // Ensure we're in browser environment
+    if (!isBrowser) {
+      console.log("Authentication skipped during build/SSR");
+      return;
+    }
+
     const now = Date.now();
     if (now - lastSignInAttempt < SIGN_IN_COOLDOWN) {
       toast.error("Please wait a moment before trying again");
@@ -67,10 +74,13 @@ export default function Authentication() {
     }
     lastSignInAttempt = now;
 
-    if (!getFirebaseAuth()) {
+    const auth = getFirebaseAuth();
+    const provider = getGoogleAuthProvider();
+
+    if (!auth || !provider) {
       const error =
         "Authentication service is not available. Please try again later.";
-      console.error("Firebase auth is not initialized");
+      console.error("Firebase auth or provider is not initialized");
       setError(error);
       toast.error(error);
       return;
@@ -79,8 +89,9 @@ export default function Authentication() {
     try {
       setLoading(true);
       setError("");
-      const auth = getFirebaseAuth();
-      const provider = getGoogleAuthProvider();
+
+      // TypeScript assertion to inform TypeScript that these are not null
+      // We've already checked above
       const result = await signInWithPopup(auth, provider);
 
       // Get the ID token and set the session cookie

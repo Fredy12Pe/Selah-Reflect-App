@@ -2,8 +2,9 @@ import { Fragment, useState, useEffect } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { getFirebaseDb } from "@/lib/firebase";
 import { useAuth } from "@/lib/context/AuthContext";
+import { isBrowser } from "@/lib/utils/environment";
 
 type JournalModalProps = {
   isOpen: boolean;
@@ -27,9 +28,15 @@ export default function JournalModal({
 
   useEffect(() => {
     async function loadJournalEntry() {
-      if (!user || !isOpen) return;
+      if (!user || !isOpen || !isBrowser) return;
 
       try {
+        const db = getFirebaseDb();
+        if (!db) {
+          console.error("Firestore not initialized");
+          return;
+        }
+
         const docRef = doc(db, "users", user.uid, "journalEntries", date);
         const docSnap = await getDoc(docRef);
 
@@ -46,12 +53,19 @@ export default function JournalModal({
   }, [user, date, isOpen, questions]);
 
   const handleSave = async () => {
-    if (!user) return;
+    if (!user || !isBrowser) return;
 
     setSaving(true);
     setSaveStatus("idle");
 
     try {
+      const db = getFirebaseDb();
+      if (!db) {
+        console.error("Firestore not initialized");
+        setSaveStatus("error");
+        return;
+      }
+
       const docRef = doc(db, "users", user.uid, "journalEntries", date);
       await setDoc(docRef, {
         answers: entries,
