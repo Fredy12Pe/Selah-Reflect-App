@@ -105,13 +105,68 @@ fs.copyFileSync(tempEnvPath, envLocalPath);
 
 // Ensure all necessary dependencies are installed
 try {
-  console.log(`${colors.bright}${colors.cyan}🔍 Checking for missing Firebase dependencies...${colors.reset}`);
-  execSync('npm install --save @firebase/app @firebase/auth @firebase/firestore @firebase/storage @firebase/util @firebase/component', { stdio: 'inherit' });
+  console.log(`${colors.bright}${colors.cyan}🔍 Checking for missing dependencies...${colors.reset}`);
+  execSync('npm install --save @firebase/app @firebase/auth @firebase/firestore @firebase/storage @firebase/util @firebase/component console-browserify buffer util path-browserify stream-browserify', { stdio: 'inherit' });
   console.log(`${colors.bright}${colors.green}✅ Dependencies installed successfully${colors.reset}`);
 } catch (error) {
   console.error(`${colors.bright}${colors.red}❌ Failed to install dependencies${colors.reset}`);
   console.error(error);
   // Continue to build even if dependency installation fails
+}
+
+// Ensure the shim directories exist
+const shimDir = path.join(process.cwd(), 'shims');
+if (!fs.existsSync(shimDir)) {
+  console.log(`${colors.cyan}Creating shims directory...${colors.reset}`);
+  fs.mkdirSync(shimDir, { recursive: true });
+}
+
+// Create shim files if they don't exist
+const shimFiles = [
+  {
+    path: path.join(shimDir, 'util-types.js'),
+    content: `// Shim for Node.js util/types module in the browser
+module.exports = {
+  isArrayBufferView: () => false,
+  isUint8Array: (obj) => Object.prototype.toString.call(obj) === '[object Uint8Array]',
+  isUint16Array: (obj) => Object.prototype.toString.call(obj) === '[object Uint16Array]',
+  isUint32Array: (obj) => Object.prototype.toString.call(obj) === '[object Uint32Array]',
+  isInt8Array: (obj) => Object.prototype.toString.call(obj) === '[object Int8Array]',
+  isInt16Array: (obj) => Object.prototype.toString.call(obj) === '[object Int16Array]',
+  isInt32Array: (obj) => Object.prototype.toString.call(obj) === '[object Int32Array]',
+  isFloat32Array: (obj) => Object.prototype.toString.call(obj) === '[object Float32Array]',
+  isFloat64Array: (obj) => Object.prototype.toString.call(obj) === '[object Float64Array]',
+  isDate: (obj) => obj instanceof Date,
+  isRegExp: (obj) => obj instanceof RegExp
+};`
+  },
+  {
+    path: path.join(shimDir, 'stream-web.js'),
+    content: `// Shim for Node.js stream/web module in the browser
+module.exports = {
+  ReadableStream: typeof ReadableStream !== 'undefined' ? ReadableStream : class ReadableStream {},
+  WritableStream: typeof WritableStream !== 'undefined' ? WritableStream : class WritableStream {},
+  TransformStream: typeof TransformStream !== 'undefined' ? TransformStream : class TransformStream {},
+  ByteLengthQueuingStrategy: typeof ByteLengthQueuingStrategy !== 'undefined' ? ByteLengthQueuingStrategy : class ByteLengthQueuingStrategy {},
+  CountQueuingStrategy: typeof CountQueuingStrategy !== 'undefined' ? CountQueuingStrategy : class CountQueuingStrategy {}
+};`
+  },
+  {
+    path: path.join(shimDir, 'worker-threads.js'),
+    content: `// Shim for Node.js worker_threads module in the browser
+module.exports = {
+  Worker: typeof Worker !== 'undefined' ? Worker : class Worker {},
+  MessageChannel: typeof MessageChannel !== 'undefined' ? MessageChannel : class MessageChannel {},
+  MessagePort: typeof MessagePort !== 'undefined' ? MessagePort : class MessagePort {},
+  isMainThread: true
+};`
+  }
+];
+
+// Write all shim files
+for (const file of shimFiles) {
+  console.log(`${colors.cyan}Creating shim file: ${file.path}${colors.reset}`);
+  fs.writeFileSync(file.path, file.content);
 }
 
 // Patch Node.js built-in modules used by undici and other dependencies
@@ -158,6 +213,12 @@ module.exports = {
   MessagePort: class MessagePort {},
   isMainThread: true
 };`
+    },
+    {
+      path: path.join(process.cwd(), 'node_modules', 'console', 'index.js'),
+      content: `
+// This is a shim for console to allow builds to complete
+module.exports = console;`
     }
   ];
   
@@ -233,11 +294,9 @@ module.exports = {
       // Fix stream/web imports
       if (content.includes("require('stream/web')")) {
         console.log(`Patching stream/web import in ${filePath}...`);
-        const relativePath = path.relative(path.dirname(filePath), process.cwd()).replace(/\\/g, '/');
-        // Use direct path to root stream/web
         content = content.replace(
           "require('stream/web')",
-          `require('${relativePath}/stream/web')`
+          `require('${path.relative(path.dirname(filePath), path.join(process.cwd(), 'shims', 'stream-web.js')).replace(/\\/g, '/')}')`
         );
         modified = true;
       }
@@ -245,10 +304,9 @@ module.exports = {
       // Fix util/types imports
       if (content.includes("require('util/types')")) {
         console.log(`Patching util/types import in ${filePath}...`);
-        const relativePath = path.relative(path.dirname(filePath), process.cwd()).replace(/\\/g, '/');
         content = content.replace(
           "require('util/types')",
-          `require('${relativePath}/util/types')`
+          `require('${path.relative(path.dirname(filePath), path.join(process.cwd(), 'shims', 'util-types.js')).replace(/\\/g, '/')}')`
         );
         modified = true;
       }
@@ -256,10 +314,19 @@ module.exports = {
       // Fix worker_threads imports
       if (content.includes("require('worker_threads')")) {
         console.log(`Patching worker_threads import in ${filePath}...`);
-        const relativePath = path.relative(path.dirname(filePath), process.cwd()).replace(/\\/g, '/');
         content = content.replace(
           "require('worker_threads')",
-          `require('${relativePath}/worker_threads')`
+          `require('${path.relative(path.dirname(filePath), path.join(process.cwd(), 'shims', 'worker-threads.js')).replace(/\\/g, '/')}')`
+        );
+        modified = true;
+      }
+      
+      // Fix console imports
+      if (content.includes("require('console')")) {
+        console.log(`Patching console import in ${filePath}...`);
+        content = content.replace(
+          "require('console')",
+          "typeof window !== 'undefined' ? window.console : console"
         );
         modified = true;
       }
@@ -272,18 +339,21 @@ module.exports = {
     }
   };
   
-  // Process undici directory
-  const undiciDir = './node_modules/@firebase/storage/node_modules/undici';
-  if (fs.existsSync(undiciDir)) {
-    console.log(`${colors.cyan}Processing undici directory for module import fixes...${colors.reset}`);
-    processDirectory(undiciDir, processFile);
-  }
+  // Process firebase and undici directories
+  const dirsToProcess = [
+    './node_modules/@firebase/storage/node_modules/undici',
+    './node_modules/@firebase/storage',
+    './node_modules/undici',
+    './node_modules/@firebase/app',
+    './node_modules/@firebase/firestore',
+    './node_modules/@firebase/auth'
+  ];
   
-  // Process firebase storage directory
-  const firebaseStorageDir = './node_modules/@firebase/storage';
-  if (fs.existsSync(firebaseStorageDir)) {
-    console.log(`${colors.cyan}Processing firebase storage directory for module import fixes...${colors.reset}`);
-    processDirectory(firebaseStorageDir, processFile);
+  for (const dir of dirsToProcess) {
+    if (fs.existsSync(dir)) {
+      console.log(`${colors.cyan}Processing ${dir} directory for module import fixes...${colors.reset}`);
+      processDirectory(dir, processFile);
+    }
   }
   
   console.log(`${colors.bright}${colors.green}✅ Node.js module patches applied successfully${colors.reset}`);

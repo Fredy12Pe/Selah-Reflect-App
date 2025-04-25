@@ -6,6 +6,8 @@ const withPWA = require('next-pwa')({
   skipWaiting: true,
 });
 
+const path = require('path');
+
 const nextConfig = {
   images: {
     domains: ['images.unsplash.com', 'www.google.com', 'source.unsplash.com'],
@@ -36,10 +38,12 @@ const nextConfig = {
         http: require.resolve('stream-http'),
         https: require.resolve('https-browserify'),
         os: require.resolve('os-browserify/browser'),
-        async_hooks: false, // Explicitly set async_hooks to false for client-side
-        'stream/web': false, // Add stream/web module
-        'util/types': false, // Add util/types module
-        'worker_threads': false, // Add worker_threads module
+        console: require.resolve('console-browserify'),
+        async_hooks: false,
+        'stream/web': false,
+        'util/types': false,
+        'worker_threads': false,
+        util: require.resolve('util/'),
       };
 
       // Force resolving Firebase dependencies for client builds
@@ -49,7 +53,16 @@ const nextConfig = {
         '@firebase/auth': require.resolve('@firebase/auth'),
         '@firebase/firestore': require.resolve('@firebase/firestore'),
         '@firebase/storage': require.resolve('@firebase/storage'),
+        // Add aliases for deep node modules to handle relative path issues
+        'util/types': path.resolve(__dirname, 'shims/util-types.js'),
+        'stream/web': path.resolve(__dirname, 'shims/stream-web.js'),
+        'worker_threads': path.resolve(__dirname, 'shims/worker-threads.js'),
       };
+      
+      // Add the Buffer polyfill for client-side
+      if (!config.resolve.fallback.buffer) {
+        config.resolve.fallback.buffer = require.resolve('buffer/');
+      }
     }
 
     // Handle module not found errors with Firebase
@@ -63,6 +76,7 @@ const nextConfig = {
       { message: /Can't resolve 'stream\/web'/ },
       { message: /Can't resolve 'util\/types'/ },
       { message: /Can't resolve 'worker_threads'/ },
+      { message: /Can't resolve 'console'/ },
     ];
 
     return config;
