@@ -57,6 +57,8 @@ const nextConfig = {
         'util/types': path.resolve(__dirname, 'shims/util-types.js'),
         'stream/web': path.resolve(__dirname, 'shims/stream-web.js'),
         'worker_threads': path.resolve(__dirname, 'shims/worker-threads.js'),
+        // Handle Firestore Node.js bundle imports in the browser
+        '@firebase/firestore/dist/index.node.mjs': path.resolve(__dirname, 'shims/firestore-browser.js'),
       };
       
       // Add the Buffer polyfill for client-side
@@ -77,6 +79,9 @@ const nextConfig = {
       { message: /Can't resolve 'util\/types'/ },
       { message: /Can't resolve 'worker_threads'/ },
       { message: /Can't resolve 'console'/ },
+      { message: /'_isFirebaseServerApp' is not exported from '@firebase\/app'/ },
+      { message: /Attempted import error/ },
+      { message: /Module not found: Can't resolve/ },
     ];
 
     return config;

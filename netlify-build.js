@@ -171,6 +171,16 @@ module.exports = {
   MessagePort: typeof MessagePort !== 'undefined' ? MessagePort : class MessagePort {},
   isMainThread: true
 };`
+  },
+  {
+    path: path.join(shimDir, 'firestore-browser.js'),
+    content: `// Firestore browser shim to handle server-side imports
+// This redirects to the browser version instead of the Node.js version
+
+export * from '@firebase/firestore';
+
+// Add a mock for _isFirebaseServerApp since it's missing from the browser version
+export const _isFirebaseServerApp = false;`
   }
 ];
 
@@ -183,6 +193,28 @@ for (const file of shimFiles) {
 // Patch Node.js built-in modules used by undici and other dependencies
 try {
   console.log(`${colors.bright}${colors.cyan}🔧 Patching Node.js dependencies for browser compatibility...${colors.reset}`);
+  
+  // Create a mock for the Node.js version of Firestore
+  const firestoreNodeDir = path.join(process.cwd(), 'node_modules', '@firebase', 'firestore', 'dist');
+  const firestoreNodePath = path.join(firestoreNodeDir, 'index.node.mjs');
+  
+  if (!fs.existsSync(firestoreNodeDir)) {
+    fs.mkdirSync(firestoreNodeDir, { recursive: true });
+  }
+  
+  const firestoreNodeContent = `
+// Mock for the Node.js version of Firestore
+// This file exists to prevent build errors on Netlify
+
+// Re-export everything from the browser version
+export * from '../index.esm2017.js';
+
+// Add missing exports that the Node version has
+export const _isFirebaseServerApp = false;
+`;
+  
+  fs.writeFileSync(firestoreNodePath, firestoreNodeContent);
+  console.log(`${colors.bright}${colors.green}✅ Created Firestore Node.js mock at ${firestoreNodePath}${colors.reset}`);
   
   // Create module shims for browser environment
   const modulesToShim = [
