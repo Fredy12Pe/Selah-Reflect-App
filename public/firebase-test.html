@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Firebase Test Page</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    h1 {
+      color: #333;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 10px;
+    }
+    .card {
+      background-color: #f9f9f9;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    code {
+      background-color: #eee;
+      padding: 2px 4px;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+    #env-vars, #console-output {
+      white-space: pre-wrap;
+      background-color: #333;
+      color: #fff;
+      font-family: monospace;
+      padding: 15px;
+      border-radius: 8px;
+      max-height: 300px;
+      overflow: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>Firebase Test Page</h1>
+  
+  <div class="card">
+    <h2>Test Information</h2>
+    <p>This page tests Firebase initialization in the browser environment. Check the console for detailed logs.</p>
+    <p>You can also see the environment variables and console output below.</p>
+  </div>
+  
+  <div class="card">
+    <h2>Environment Variables</h2>
+    <div id="env-vars">Loading...</div>
+  </div>
+  
+  <div class="card">
+    <h2>Console Output</h2>
+    <div id="console-output">Loading...</div>
+  </div>
+  
+  <script>
+    // Capture console output
+    const consoleOutput = document.getElementById('console-output');
+    const originalConsole = {
+      log: console.log,
+      error: console.error,
+      warn: console.warn,
+      info: console.info
+    };
+    
+    // Function to add log to UI
+    function addLog(type, args) {
+      const logElement = document.createElement('div');
+      logElement.className = `log-${type}`;
+      logElement.textContent = `[${type.toUpperCase()}] ${Array.from(args).map(arg => {
+        if (typeof arg === 'object') return JSON.stringify(arg, null, 2);
+        return String(arg);
+      }).join(' ')}`;
+      consoleOutput.appendChild(logElement);
+      consoleOutput.scrollTop = consoleOutput.scrollHeight;
+    }
+    
+    // Override console methods
+    console.log = function() {
+      originalConsole.log.apply(console, arguments);
+      addLog('log', arguments);
+    };
+    console.error = function() {
+      originalConsole.error.apply(console, arguments);
+      addLog('error', arguments);
+    };
+    console.warn = function() {
+      originalConsole.warn.apply(console, arguments);
+      addLog('warn', arguments);
+    };
+    console.info = function() {
+      originalConsole.info.apply(console, arguments);
+      addLog('info', arguments);
+    };
+    
+    // Show environment variables
+    const envVarsElement = document.getElementById('env-vars');
+    setTimeout(() => {
+      envVarsElement.textContent = 'Environment Variables:\n';
+      
+      // Check for process.env
+      if (typeof process !== 'undefined' && process.env) {
+        const envKeys = Object.keys(process.env).filter(key => key.startsWith('NEXT_PUBLIC_'));
+        if (envKeys.length > 0) {
+          envVarsElement.textContent += envKeys.map(key => `${key}: ${process.env[key] ? 'exists' : 'missing'}`).join('\n');
+        } else {
+          envVarsElement.textContent += 'No NEXT_PUBLIC_ environment variables found';
+        }
+      } else {
+        envVarsElement.textContent += 'process.env is not available in the browser';
+      }
+    }, 500);
+  </script>
+  
+  <!-- Load the Firebase test script -->
+  <script src="/firebase-test.js"></script>
+</body>
+</html> 

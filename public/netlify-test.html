@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Netlify Static File Test</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    h1 {
+      color: #0070f3;
+    }
+    .card {
+      border: 1px solid #e1e1e1;
+      border-radius: 5px;
+      padding: 20px;
+      margin: 20px 0;
+      background-color: #f9f9f9;
+    }
+    .success {
+      color: green;
+      font-weight: bold;
+    }
+    .failure {
+      color: red;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Netlify Static File Test</h1>
+  
+  <div class="card">
+    <p>This page is a static HTML file served from the <code>public</code> directory.</p>
+    <p>If you can see this page, static file serving is working correctly.</p>
+  </div>
+
+  <div class="card">
+    <h2>Diagnose Common Issues</h2>
+    <p>If your Next.js app has problems with missing assets but this page shows correctly, the issue is likely with:</p>
+    <ul>
+      <li>JavaScript bundling or minification (check <code>netlify.toml</code> settings)</li>
+      <li>Redirect rules (check for conflicts in <code>_redirects</code> or <code>netlify.toml</code>)</li>
+      <li>The Netlify Next.js plugin configuration</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Test Results:</h2>
+    <p>Static HTML: <span class="success">✓ Working</span></p>
+    <p>Static Image: <span id="image-test">Testing...</span></p>
+    <img src="/favicon.ico" width="32" height="32" alt="Favicon" onload="document.getElementById('image-test').innerHTML = '<span class=\'success\'>✓ Working</span>'" onerror="document.getElementById('image-test').innerHTML = '<span class=\'failure\'>✗ Failed</span>'">
+  </div>
+
+  <div class="card">
+    <h2>Next Steps</h2>
+    <p>Try accessing these URLs to test different aspects of your deployment:</p>
+    <ul>
+      <li><a href="/">/</a> - Root of your Next.js app</li>
+      <li><a href="/api/hello">/api/hello</a> - API route (if you have one)</li>
+      <li><a href="/_next/static/">/\_next/static/</a> - Next.js static assets</li>
+    </ul>
+  </div>
+</body>
+</html> 

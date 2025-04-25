@@ -12,8 +12,14 @@ import {
 } from "@heroicons/react/24/outline";
 import { useAuth } from "@/lib/context/AuthContext";
 import { getDevotionByDate } from "@/lib/services/devotionService";
-import { getFirebaseDb } from "@/lib/firebase/firebase";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import {
+  safeDoc,
+  safeCollection,
+  safeSetDoc,
+  safeGetDoc,
+  safeUpdateDoc,
+  safeGetDocs,
+} from "@/lib/utils/firebase-helpers";
 import { toast } from "react-hot-toast";
 import { Devotion, ReflectionSection } from "@/lib/types/devotion";
 
@@ -87,15 +93,8 @@ export default function JournalPage({ params }: { params: { date: string } }) {
         setDevotion(devotionData);
 
         // Load existing journal entries
-        const db = getFirebaseDb();
-        const journalRef = doc(
-          db,
-          "users",
-          user.uid,
-          "journalEntries",
-          params.date
-        );
-        const journalSnap = await getDoc(journalRef);
+        const journalRef = safeDoc(user.uid, "journalEntries", params.date);
+        const journalSnap = await safeGetDoc(journalRef);
 
         if (journalSnap.exists()) {
           const data = journalSnap.data();
@@ -301,16 +300,9 @@ export default function JournalPage({ params }: { params: { date: string } }) {
 
     setIsSaving(true);
     try {
-      const db = getFirebaseDb();
-      const journalRef = doc(
-        db,
-        "users",
-        user.uid,
-        "journalEntries",
-        params.date
-      );
+      const journalRef = safeDoc(user.uid, "journalEntries", params.date);
 
-      await setDoc(
+      await safeSetDoc(
         journalRef,
         {
           entries,

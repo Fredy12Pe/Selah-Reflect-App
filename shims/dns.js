@@ -19,4 +19,4 @@ module.exports = {
     lookup: async () => ({ address: '127.0.0.1', family: 4 }),
     resolve: async () => ['127.0.0.1']
   }
-}; 
+};

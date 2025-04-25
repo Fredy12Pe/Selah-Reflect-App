@@ -11,4 +11,4 @@ module.exports = {
   isFloat64Array: (obj) => Object.prototype.toString.call(obj) === '[object Float64Array]',
   isDate: (obj) => obj instanceof Date,
   isRegExp: (obj) => obj instanceof RegExp
-}; 
+};

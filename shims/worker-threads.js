@@ -4,4 +4,4 @@ module.exports = {
   MessageChannel: typeof MessageChannel !== 'undefined' ? MessageChannel : class MessageChannel {},
   MessagePort: typeof MessagePort !== 'undefined' ? MessagePort : class MessagePort {},
   isMainThread: true
-}; 
+};

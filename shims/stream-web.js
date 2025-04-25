@@ -5,4 +5,4 @@ module.exports = {
   TransformStream: typeof TransformStream !== 'undefined' ? TransformStream : class TransformStream {},
   ByteLengthQueuingStrategy: typeof ByteLengthQueuingStrategy !== 'undefined' ? ByteLengthQueuingStrategy : class ByteLengthQueuingStrategy {},
   CountQueuingStrategy: typeof CountQueuingStrategy !== 'undefined' ? CountQueuingStrategy : class CountQueuingStrategy {}
-}; 
+};

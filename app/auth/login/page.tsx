@@ -2,68 +2,74 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getAuth, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
-import { getFirebaseAuth } from "@/lib/firebase/firebase";
+import { signInWithPopup, GoogleAuthProvider } from "firebase/auth";
+import {
+  getFirebaseAuth,
+  getGoogleAuthProvider,
+} from "@/lib/firebase/firebase";
+import { useAuth } from "@/lib/context/AuthContext";
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [initialized, setInitialized] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user } = useAuth();
+  const from = searchParams?.get("from") || "/";
 
-  const verifySession = async () => {
-    const response = await fetch("/api/auth/verify", {
-      credentials: "include",
-    });
-    return response.ok;
-  };
+  // Static loading state that shows immediately while JavaScript loads
+  useEffect(() => {
+    // Mark as initialized once JavaScript is running
+    setInitialized(true);
+
+    // Apply Firebase patches to ensure they're available
+    if (typeof window !== "undefined") {
+      window._isFirebaseServerApp =
+        window._isFirebaseServerApp ||
+        function () {
+          return false;
+        };
+      window._registerComponent =
+        window._registerComponent ||
+        function (component) {
+          return component;
+        };
+      window._getProvider =
+        window._getProvider ||
+        function () {
+          return {
+            getImmediate: function () {
+              return {};
+            },
+            get: function () {
+              return {};
+            },
+          };
+        };
+      console.log("[Login] Applied Firebase patches in login page");
+    }
+
+    // If user is already authenticated, redirect
+    if (user) {
+      router.push(from !== "/auth/login" ? from : "/");
+    }
+  }, [from, router, user]);
 
   const signInWithGoogle = async () => {
     try {
       setLoading(true);
       setError(null);
+
       const auth = getFirebaseAuth();
-      if (!auth) throw new Error("Auth not initialized");
+      const provider = getGoogleAuthProvider();
 
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-
-      // Get the ID token
-      const idToken = await result.user.getIdToken();
-      console.log("Got ID token, creating session...");
-
-      // Exchange the ID token for a session cookie
-      const response = await fetch("/api/auth/session", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ idToken }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to create session");
+      if (!auth || !provider) {
+        throw new Error("Authentication services are not available");
       }
 
-      console.log("Session created, verifying...");
+      await signInWithPopup(auth, provider);
 
-      // Wait for the session to be verifiable
-      let verified = false;
-      for (let i = 0; i < 3; i++) {
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        verified = await verifySession();
-        if (verified) break;
-      }
-
-      if (!verified) {
-        throw new Error("Failed to verify session");
-      }
-
-      console.log("Session verified, redirecting...");
-
-      // Get the redirect path from URL params or default to a date we know has data
-      const from = searchParams.get("from");
       if (from) {
         router.push(from);
       } else {
@@ -78,6 +84,25 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  // Show static loading state before JavaScript initializes
+  if (!initialized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-900 bg-opacity-75 bg-[url('/images/background.jpg')] bg-cover bg-center">
+        <div className="bg-black bg-opacity-50 p-8 rounded-lg shadow-xl max-w-md w-full">
+          <h1 className="text-3xl font-bold text-center mb-8 text-white">
+            Welcome to Selah
+          </h1>
+          <div className="space-y-4">
+            <div className="w-full flex items-center justify-center space-x-2 bg-white text-gray-800 px-4 py-2 rounded-lg">
+              <div className="w-6 h-6 rounded-full border-2 border-gray-800 border-t-transparent animate-spin"></div>
+              <span>Initializing application...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-900 bg-opacity-75 bg-[url('/images/background.jpg')] bg-cover bg-center">

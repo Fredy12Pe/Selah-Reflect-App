@@ -9,4 +9,4 @@ module.exports = {
   hasSubscribers: () => false,
   channels: {},
   tracingChannel: () => null
-}; 
+};

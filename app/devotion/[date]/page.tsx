@@ -4,8 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/lib/context/AuthContext";
-import { getFirebaseDb } from "@/lib/firebase/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { safeDoc, safeGetDoc } from "@/lib/utils/firebase-helpers";
 import { toast, Toaster } from "react-hot-toast";
 import {
   getDailyDevotionImage,
@@ -112,9 +111,8 @@ export default function DevotionPage({ params }: { params: { date: string } }) {
 
     const fetchData = async () => {
       try {
-        const db = getFirebaseDb();
-        const devotionRef = doc(db, "devotions", params.date);
-        const devotionSnap = await getDoc(devotionRef);
+        const devotionRef = safeDoc("devotions", params.date);
+        const devotionSnap = await safeGetDoc(devotionRef);
 
         if (devotionSnap.exists()) {
           const devotionData = devotionSnap.data() as DevotionData;

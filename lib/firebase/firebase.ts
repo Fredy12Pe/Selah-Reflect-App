@@ -1,21 +1,12 @@
-import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getAuth, browserLocalPersistence, setPersistence, onAuthStateChanged, User, Auth } from 'firebase/auth';
-import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, Firestore } from 'firebase/firestore';
-import { getStorage } from '../firebase/storage-patch';
-import { checkFirebaseConfig } from './checkConfig';
-import { isBrowser } from '../utils/environment';
+import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
+import { getAuth, Auth, GoogleAuthProvider } from 'firebase/auth';
+import { getFirestore, Firestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
+import { isBrowser, shouldSkipFirebaseInit } from '../utils/environment';
+import '../firebase/patch'; // Import patch before Firebase is initialized
+import '../firebase/patchAuth'; // Import auth-specific patch
 
-// Log environment variables (without exposing sensitive values)
-console.log('Firebase Config Environment Variables Present:', {
-  apiKey: !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: !!process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: !!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: !!process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: !!process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: !!process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-});
-
-// Add firebaseConfig export after the environment variable logging
+// Firebase configuration
 export const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -25,107 +16,109 @@ export const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-let app: FirebaseApp | undefined;
-let auth: Auth | undefined;
-let db: Firestore | undefined;
-let storage: any | undefined;
-
-// Initialize Firebase only in browser environments
+// Early debugging of environment vars
 if (isBrowser()) {
-  try {
-    console.log('Firebase: Initializing in browser environment');
-    app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-    db = getFirestore(app);
-    auth = getAuth(app);
-    storage = getStorage(app);
-    console.log('Firebase: Successfully initialized in browser');
-  } catch (error) {
-    console.error('Error initializing Firebase:', error);
-  }
+  console.log('[Firebase Config] Environment Variables Present:', {
+    apiKey: !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+    authDomain: !!process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    projectId: !!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+    storageBucket: !!process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: !!process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+    appId: !!process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  });
 }
 
-export function getFirebaseApp(): FirebaseApp {
-  if (!isBrowser()) {
-    throw new Error('Firebase is not available in non-browser environments');
-  }
+// Initialize Firebase (with error handling)
+let app: FirebaseApp = {} as FirebaseApp;
+let auth: Auth = {} as Auth;
+let firestore: Firestore = {} as Firestore;
+let storage: any = {};
 
-  if (!app) {
-    const { hasIssues, issues, config } = checkFirebaseConfig();
+try {
+  // Skip initialization during server-side rendering or build
+  if (typeof window === 'undefined' || shouldSkipFirebaseInit) {
+    console.log('[Firebase] Skipping initialization (server context)');
+    // Empty objects already initialized
+  } 
+  // Initialize in browser environment
+  else {
+    console.log('[Firebase] Initializing in browser environment');
     
-    if (hasIssues) {
-      console.error('Firebase configuration issues detected:');
-      issues.forEach(issue => console.error('- ' + issue));
-      console.error('Configuration status:', config);
-      throw new Error('Invalid Firebase configuration');
+    // Apply manual patches to global window object
+    if (typeof window !== 'undefined') {
+      // Ensure these essential functions exist
+      window._isFirebaseServerApp = window._isFirebaseServerApp || function() { return false; };
+      window._registerComponent = window._registerComponent || function(c) { return c; };
+      window._getProvider = window._getProvider || function() { 
+        return { getImmediate: () => ({}), get: () => ({}) }; 
+      };
     }
-
-    try {
-      app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-      console.log('Firebase app initialized successfully');
-    } catch (error) {
-      console.error('Error initializing Firebase app:', error);
-      throw error;
+    
+    // Check if app is already initialized
+    if (getApps().length === 0) {
+      console.log('[Firebase] Creating new Firebase app instance');
+      app = initializeApp(firebaseConfig);
+    } else {
+      console.log('[Firebase] Using existing Firebase app instance');
+      app = getApps()[0];
     }
+    
+    // Initialize Firebase services
+    console.log('[Firebase] Initializing Firebase Auth');
+    auth = getAuth(app);
+    
+    console.log('[Firebase] Initializing Firestore');
+    firestore = getFirestore(app);
+    
+    console.log('[Firebase] Initializing Storage');
+    storage = getStorage(app);
+    
+    console.log('[Firebase] All services initialized successfully');
   }
-  return app;
+} catch (error) {
+  console.error('[Firebase] Initialization error:', error);
+  // No need for fallbacks since variables are already initialized
 }
 
-export function getFirebaseAuth(): Auth {
-  if (!isBrowser()) {
-    throw new Error('Firebase Auth is not available in non-browser environments');
+// Add the utility functions that are imported elsewhere
+export const getFirebaseAuth = (): Auth | null => {
+  if (shouldSkipFirebaseInit || !isBrowser()) {
+    console.log('Firebase Auth access skipped during build or server rendering');
+    return null;
   }
-
+  
   if (!auth) {
-    const currentApp = getFirebaseApp();
-    try {
-      auth = getAuth(currentApp);
-      console.log('Firebase auth initialized successfully');
-    } catch (error) {
-      console.error('Error initializing Firebase auth:', error);
-      throw error;
-    }
+    app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+    auth = getAuth(app);
   }
   return auth;
-}
+};
 
-export function getFirebaseDb(): Firestore {
-  if (!isBrowser()) {
-    throw new Error('Firebase Firestore is not available in non-browser environments');
+export const getFirebaseDb = (): Firestore | null => {
+  if (shouldSkipFirebaseInit || !isBrowser()) {
+    console.log('Firebase Firestore access skipped during build or server rendering');
+    return null;
   }
-
-  if (!db) {
-    const currentApp = getFirebaseApp();
-    try {
-      db = initializeFirestore(currentApp, {
-        localCache: persistentLocalCache({
-          tabManager: persistentMultipleTabManager()
-        })
-      });
-      console.log('Firestore initialized successfully with persistence');
-    } catch (error) {
-      console.error('Error initializing Firestore:', error);
-      throw error;
-    }
+  
+  if (!firestore) {
+    app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+    firestore = getFirestore(app);
   }
-  return db;
-}
+  return firestore;
+};
 
-export function getFirebaseStorage(): any {
-  if (!isBrowser()) {
-    throw new Error('Firebase Storage is not available in non-browser environments');
+export const getGoogleAuthProvider = (): GoogleAuthProvider | null => {
+  if (shouldSkipFirebaseInit || !isBrowser()) {
+    console.log('Google Auth Provider access skipped during build or server rendering');
+    return null;
   }
+  
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ 
+    prompt: 'select_account',
+  });
+  return provider;
+};
 
-  if (!storage) {
-    const currentApp = getFirebaseApp();
-    try {
-      storage = getStorage(currentApp);
-      console.log('Firebase storage initialized successfully');
-    } catch (error) {
-      console.error('Error initializing Firebase storage:', error);
-      throw error;
-    }
-  }
-  return storage;
-}
-
-export { app, db, auth, storage }; 
+// Export the initialized Firebase instances
+export { app, auth, firestore, storage }; 

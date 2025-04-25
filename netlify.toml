@@ -1,5 +1,5 @@
 [build]
-  command = "npm run build:client"
+  command = "npm run build:netlify-fix"
   publish = ".next"
 
 [build.environment]
@@ -10,6 +10,8 @@
   SKIP_API_ROUTES = "true"
   SKIP_FIREBASE_ADMIN = "true"
   NETLIFY = "true"
+  NEXT_PUBLIC_IS_NETLIFY_BUILD = "true"
+  NEXT_STATIC_EXPORT = "false"
 
 # Disable JavaScript bundling
 [build.processing]

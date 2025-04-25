@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/context/AuthContext";
-import { getFirebaseDb } from "@/lib/firebase/firebase";
+import { safeCollection, safeGetDocs } from "@/lib/utils/firebase-helpers";
 import { collection, getDocs } from "firebase/firestore";
 
 interface DevotionSummary {
@@ -21,11 +21,10 @@ export default function DevotionsListPage() {
     const fetchDevotions = async () => {
       try {
         setLoading(true);
-        const db = getFirebaseDb();
         console.log("Fetching devotions from Firestore...");
 
-        const devotionsRef = collection(db, "devotions");
-        const snapshot = await getDocs(devotionsRef);
+        const devotionsRef = safeCollection("devotions");
+        const snapshot = await safeGetDocs(devotionsRef);
 
         const devotionsList = snapshot.docs.map(
           (doc) =>

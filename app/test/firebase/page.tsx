@@ -1,348 +1,145 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { isBrowser } from "@/lib/utils/environment";
-import { useAuth } from "@/lib/context/AuthContext";
-import { getFirebaseAuth } from "@/lib/firebase";
-
-// Safe imports for Netlify build - these will only be imported in the browser
-const importFirebase = async () => {
-  if (!isBrowser) return null;
-
-  const { checkFirebaseConfig } = await import("@/lib/firebase/checkConfig");
-  const { getApps, getApp, initializeApp } = await import("firebase/app");
-  const { getAuth, signInWithPopup, GoogleAuthProvider } = await import(
-    "firebase/auth"
-  );
-  const { getFirestore } = await import("firebase/firestore");
-  const { getStorage } = await import("firebase/storage");
-  const { firebaseConfig } = await import("@/lib/firebase/firebase");
-
-  return {
-    checkFirebaseConfig,
-    getApps,
-    getApp,
-    initializeApp,
-    getAuth,
-    signInWithPopup,
-    GoogleAuthProvider,
-    getFirestore,
-    getStorage,
-    firebaseConfig,
-  };
-};
+import { useState, useEffect } from "react";
+// Remove the firebaseConfig import which isn't exported
+// import { firebaseConfig } from "@/lib/firebase";
 
 export default function FirebaseTestPage() {
-  // Add auth state
-  const { user, loading: authLoading, error: authError } = useAuth();
-
-  const [configStatus, setConfigStatus] = useState<{
-    hasIssues: boolean;
-    issues: string[];
-    isInitialized: boolean;
-    config: any;
-  } | null>(null);
-
-  const [initStatus, setInitStatus] = useState({
-    app: false,
-    auth: false,
-    firestore: false,
-    storage: false,
-  });
-
+  const [status, setStatus] = useState<string>("Initializing...");
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const handleSignIn = async () => {
-    if (!isBrowser) return;
-
-    try {
-      const firebase = await importFirebase();
-      if (!firebase) return;
-
-      const auth = getFirebaseAuth();
-      if (!auth) {
-        setError("Auth is not available");
-        return;
-      }
-
-      const provider = new firebase.GoogleAuthProvider();
-      await firebase.signInWithPopup(auth, provider);
-    } catch (error) {
-      console.error("Sign in error:", error);
-      setError(error instanceof Error ? error.message : "Failed to sign in");
-    }
-  };
+  const [debugInfo, setDebugInfo] = useState<Record<string, any>>({});
 
   useEffect(() => {
-    // Skip if not in browser environment
-    if (!isBrowser) {
-      setLoading(false);
-      return;
+    // Test function to debug Firebase
+    async function testFirebase() {
+      try {
+        setStatus("Testing environment...");
+
+        // Log environment
+        const envInfo = {
+          nextPublicVars: {
+            apiKey: !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+            authDomain: !!process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+            projectId: !!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+            storageBucket: !!process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+            messagingSenderId:
+              !!process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+            appId: !!process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+          },
+          window: typeof window !== "undefined",
+          document: typeof document !== "undefined",
+        };
+
+        setDebugInfo((prev: Record<string, any>) => ({
+          ...prev,
+          environment: envInfo,
+        }));
+
+        // Check global patched functions
+        const globalPatchInfo = {
+          hasIsFirebaseServerApp:
+            typeof window !== "undefined" && !!window._isFirebaseServerApp,
+          hasRegisterComponent:
+            typeof window !== "undefined" && !!window._registerComponent,
+          hasGetProvider:
+            typeof window !== "undefined" && !!window._getProvider,
+        };
+
+        setDebugInfo((prev: Record<string, any>) => ({
+          ...prev,
+          globalPatch: globalPatchInfo,
+        }));
+
+        // Now try to dynamically import Firebase
+        setStatus("Importing Firebase...");
+
+        const firebase = await import("@/lib/firebase");
+        setDebugInfo((prev: Record<string, any>) => ({
+          ...prev,
+          imports: {
+            app: !!firebase.app,
+            auth: !!firebase.auth,
+            db: !!firebase.db,
+            storage: !!firebase.storage,
+          },
+        }));
+
+        setStatus("Firebase imported successfully");
+
+        // If we got here, Firebase was imported successfully
+        if (firebase.app) {
+          setStatus("Firebase initialized successfully");
+        } else {
+          setStatus("Firebase import succeeded but app is undefined");
+          setError("Firebase app is undefined");
+        }
+      } catch (e: any) {
+        console.error("Firebase test error:", e);
+        setError(`Error: ${e.message || "Unknown error"}`);
+        setStatus("Failed to initialize Firebase");
+
+        // Log stack trace
+        setDebugInfo((prev: Record<string, any>) => ({
+          ...prev,
+          error: { message: e.message, stack: e.stack },
+        }));
+      }
     }
 
-    const initFirebase = async () => {
-      console.log("Starting Firebase test...");
-      console.log("Auth state:", {
-        user,
-        loading: authLoading,
-        error: authError,
-      });
-
-      try {
-        const firebase = await importFirebase();
-        if (!firebase) {
-          setError("Failed to import Firebase modules");
-          setLoading(false);
-          return;
-        }
-
-        console.log("Current Firebase config:", {
-          ...firebase.firebaseConfig,
-          apiKey: firebase.firebaseConfig.apiKey ? "***" : undefined,
-          appId: firebase.firebaseConfig.appId ? "***" : undefined,
-        });
-
-        // Check configuration
-        const status = firebase.checkFirebaseConfig();
-        console.log("Config check result:", status);
-        setConfigStatus(status);
-
-        if (status.hasIssues) {
-          setError(
-            "Firebase configuration has issues. Check the details below."
-          );
-          setLoading(false);
-          return;
-        }
-
-        // Try to initialize Firebase if not already initialized
-        if (!status.isInitialized) {
-          console.log("Initializing Firebase...");
-          const app = firebase.initializeApp(firebase.firebaseConfig);
-          setInitStatus((prev) => ({ ...prev, app: true }));
-          console.log("Firebase app initialized");
-
-          // Try to initialize Auth
-          try {
-            console.log("Initializing Auth...");
-            const auth = firebase.getAuth(app);
-            setInitStatus((prev) => ({ ...prev, auth: true }));
-            console.log("Auth initialized");
-          } catch (e) {
-            console.error("Auth initialization error:", e);
-            setError(
-              `Auth initialization failed: ${
-                e instanceof Error ? e.message : String(e)
-              }`
-            );
-          }
-
-          // Try to initialize Firestore
-          try {
-            console.log("Initializing Firestore...");
-            const db = firebase.getFirestore(app);
-            setInitStatus((prev) => ({ ...prev, firestore: true }));
-            console.log("Firestore initialized");
-          } catch (e) {
-            console.error("Firestore initialization error:", e);
-            setError(
-              `Firestore initialization failed: ${
-                e instanceof Error ? e.message : String(e)
-              }`
-            );
-          }
-
-          // Try to initialize Storage
-          try {
-            const storage = firebase.getStorage();
-            setInitStatus((prev) => ({ ...prev, storage: true }));
-            console.log("Storage initialized");
-          } catch (e) {
-            console.error("Storage initialization error:", e);
-            setError(
-              `Storage initialization failed: ${
-                e instanceof Error ? e.message : String(e)
-              }`
-            );
-          }
-        } else {
-          console.log("Firebase already initialized, checking services...");
-          // Firebase is already initialized, just check services
-          try {
-            const app = firebase.getApp();
-            setInitStatus((prev) => ({ ...prev, app: true }));
-            console.log("Found existing Firebase app");
-
-            const auth = firebase.getAuth(app);
-            setInitStatus((prev) => ({ ...prev, auth: true }));
-            console.log("Found existing Auth instance");
-
-            const db = firebase.getFirestore(app);
-            setInitStatus((prev) => ({ ...prev, firestore: true }));
-            console.log("Found existing Firestore instance");
-
-            const storage = firebase.getStorage();
-            setInitStatus((prev) => ({ ...prev, storage: true }));
-            console.log("Found existing Storage instance");
-          } catch (e) {
-            console.error("Service check error:", e);
-            setError(
-              `Service check failed: ${
-                e instanceof Error ? e.message : String(e)
-              }`
-            );
-          }
-        }
-      } catch (e) {
-        console.error("Configuration check error:", e);
-        setError(
-          `Configuration check failed: ${
-            e instanceof Error ? e.message : String(e)
-          }`
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initFirebase();
-  }, [user, authLoading, authError]);
-
-  if (loading || authLoading) {
-    return (
-      <div className="p-8">
-        <h1 className="text-2xl font-bold mb-6">Loading Firebase Test...</h1>
-        <p className="text-gray-600">
-          {loading
-            ? "Checking Firebase configuration..."
-            : "Waiting for authentication..."}
-        </p>
-      </div>
-    );
-  }
+    testFirebase();
+  }, []);
 
   return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold mb-6">Firebase Configuration Test</h1>
+    <div className="min-h-screen p-8 bg-gray-100 dark:bg-gray-900">
+      <div className="max-w-4xl mx-auto bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+        <h1 className="text-3xl font-bold mb-6">Firebase Test Page</h1>
 
-      {/* Auth Status */}
-      <section className="mb-8">
-        <h2 className="text-xl font-semibold mb-4">Authentication Status</h2>
-        <div className="bg-gray-100 p-4 rounded">
-          <p className="mb-2">
-            Status:{" "}
-            <span className={user ? "text-green-600" : "text-yellow-600"}>
-              {user ? "Authenticated" : "Not Authenticated"}
-            </span>
+        <div className="mb-8 p-4 border rounded-md">
+          <h2 className="text-xl font-semibold mb-2">Status:</h2>
+          <p
+            className={`mb-3 font-mono ${
+              status.includes("Failed") ? "text-red-500" : "text-green-500"
+            }`}
+          >
+            {status}
           </p>
-          {user && (
-            <div>
-              <p>User ID: {user.uid}</p>
-              <p>Email: {user.email}</p>
+
+          {error && (
+            <div className="mt-4 p-3 bg-red-100 dark:bg-red-900 border border-red-300 dark:border-red-700 rounded-md">
+              <h3 className="text-lg font-medium text-red-800 dark:text-red-200">
+                Error:
+              </h3>
+              <p className="text-red-700 dark:text-red-300 font-mono text-sm whitespace-pre-wrap">
+                {error}
+              </p>
             </div>
           )}
-          {!user && (
-            <button
-              onClick={handleSignIn}
-              className="mt-2 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors"
-            >
-              Sign in with Google
-            </button>
-          )}
-          {authError && <p className="text-red-600">Auth Error: {authError}</p>}
         </div>
-      </section>
 
-      {/* Configuration Status */}
-      <section className="mb-8">
-        <h2 className="text-xl font-semibold mb-4">Configuration Check</h2>
-        {configStatus ? (
-          <div>
-            <p
-              className={`mb-2 ${
-                configStatus.hasIssues ? "text-red-600" : "text-green-600"
-              }`}
-            >
-              Status: {configStatus.hasIssues ? "Has Issues" : "OK"}
-            </p>
-            {configStatus.issues.length > 0 && (
-              <ul className="list-disc pl-5 mb-4">
-                {configStatus.issues.map((issue, index) => (
-                  <li key={index} className="text-red-600">
-                    {issue}
-                  </li>
-                ))}
-              </ul>
-            )}
-            <div className="bg-gray-100 p-4 rounded">
-              <h3 className="font-semibold mb-2">Configuration Values:</h3>
-              <pre className="whitespace-pre-wrap break-all">
-                {JSON.stringify(configStatus.config, null, 2)}
+        <div className="mb-6">
+          <h2 className="text-xl font-semibold mb-2">Debugging Information:</h2>
+
+          {Object.keys(debugInfo).map((section) => (
+            <div key={section} className="mb-6 p-4 border rounded-md">
+              <h3 className="text-lg font-medium mb-2 capitalize">
+                {section}:
+              </h3>
+              <pre className="bg-gray-100 dark:bg-gray-700 p-4 rounded-md overflow-auto text-sm">
+                {JSON.stringify(debugInfo[section], null, 2)}
               </pre>
             </div>
-          </div>
-        ) : (
-          <p>No configuration status available</p>
-        )}
-      </section>
+          ))}
+        </div>
 
-      {/* Initialization Status */}
-      <section className="mb-8">
-        <h2 className="text-xl font-semibold mb-4">Initialization Status</h2>
-        <ul className="space-y-2">
-          <li>
-            Firebase App:
-            <span
-              className={
-                initStatus.app ? "text-green-600 ml-2" : "text-red-600 ml-2"
-              }
-            >
-              {initStatus.app ? "✓ Initialized" : "✗ Not Initialized"}
-            </span>
-          </li>
-          <li>
-            Authentication:
-            <span
-              className={
-                initStatus.auth ? "text-green-600 ml-2" : "text-red-600 ml-2"
-              }
-            >
-              {initStatus.auth ? "✓ Initialized" : "✗ Not Initialized"}
-            </span>
-          </li>
-          <li>
-            Firestore:
-            <span
-              className={
-                initStatus.firestore
-                  ? "text-green-600 ml-2"
-                  : "text-red-600 ml-2"
-              }
-            >
-              {initStatus.firestore ? "✓ Initialized" : "✗ Not Initialized"}
-            </span>
-          </li>
-          <li>
-            Storage:
-            <span
-              className={
-                initStatus.storage ? "text-green-600 ml-2" : "text-red-600 ml-2"
-              }
-            >
-              {initStatus.storage ? "✓ Initialized" : "✗ Not Initialized"}
-            </span>
-          </li>
-        </ul>
-      </section>
-
-      {/* Errors */}
-      {error && (
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-red-600">Error</h2>
-          <div className="bg-red-100 p-4 rounded text-red-800">{error}</div>
-        </section>
-      )}
+        <div className="mt-6 flex space-x-4">
+          <a
+            href="/"
+            className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+          >
+            Back to Home
+          </a>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuth } from 'firebase-admin/auth';
 import { initAdmin } from '@/lib/firebase/admin';
+import { shouldSkipApiRoutes, shouldSkipFirebaseAdmin } from '@/lib/utils/environment';
 
 // Session duration: 5 days
 const SESSION_DURATION = 60 * 60 * 24 * 5;
 
+// Check if we're in build time
+const isBuildTime = shouldSkipApiRoutes || shouldSkipFirebaseAdmin;
+
 export async function POST(request: NextRequest) {
+  // Return mock response during build time
+  if (isBuildTime) {
+    console.log('Skipping session API route execution during build');
+    return NextResponse.json({ status: 'success', note: 'Build time mock response' });
+  }
+
   console.log('Session API: Starting session creation');
   try {
     // Initialize Firebase Admin

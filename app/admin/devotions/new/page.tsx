@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { useAuth } from "@/lib/context/AuthContext";
-import { getFirebaseDb } from "@/lib/firebase/firebase";
-import { doc, setDoc } from "firebase/firestore";
+import { safeDoc, safeSetDoc } from "@/lib/utils/firebase-helpers";
 import { toast, Toaster } from "react-hot-toast";
 
 export default function NewDevotion() {
@@ -61,10 +60,9 @@ export default function NewDevotion() {
 
     try {
       setSaving(true);
-      const db = getFirebaseDb();
-      const devotionRef = doc(db, "devotions", devotion.date);
+      const devotionRef = safeDoc("devotions", devotion.date);
 
-      await setDoc(devotionRef, {
+      await safeSetDoc(devotionRef, {
         ...devotion,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),

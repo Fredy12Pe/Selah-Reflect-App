@@ -62,6 +62,11 @@ export async function createOrUpdateDevotion(devotionInput: DevotionInput): Prom
 export async function getHymnByMonth(month: string): Promise<Hymn | null> {
   try {
     const db = getFirebaseDb();
+    if (!db) {
+      console.log('Database not initialized');
+      return null;
+    }
+    
     const metaRef = doc(db, META_COLLECTION, 'hymns');
     const metaSnap = await getDoc(metaRef);
 
@@ -81,6 +86,10 @@ export async function getHymnByMonth(month: string): Promise<Hymn | null> {
 export async function createOrUpdateMeta(meta: Meta): Promise<void> {
   try {
     const db = getFirebaseDb();
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
     const metaRef = doc(db, META_COLLECTION, 'hymns');
     await setDoc(metaRef, meta.hymns, { merge: true });
   } catch (error) {
@@ -92,6 +101,11 @@ export async function createOrUpdateMeta(meta: Meta): Promise<void> {
 export async function getDevotionsInRange(startDate: string, endDate: string): Promise<Devotion[]> {
   try {
     const db = getFirebaseDb();
+    if (!db) {
+      console.log('Database not initialized');
+      return [];
+    }
+    
     const q = query(
       collection(db, DEVOTIONS_COLLECTION),
       where('id', '>=', startDate),
@@ -113,6 +127,11 @@ export async function getDevotionsInRange(startDate: string, endDate: string): P
 export async function getLatestDevotion(): Promise<Devotion | null> {
   try {
     const db = getFirebaseDb();
+    if (!db) {
+      console.log('Database not initialized');
+      return null;
+    }
+    
     const q = query(
       collection(db, DEVOTIONS_COLLECTION),
       orderBy('id', 'desc'),

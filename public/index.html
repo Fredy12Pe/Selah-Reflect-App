@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Selah - Daily Devotions</title>
+  <meta name="description" content="A personal devotional app for daily reflection">
+  <meta name="application-name" content="Selah">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Selah">
+  <meta name="format-detection" content="telephone=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icon-192.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/icon-192.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#000000">
+  
+  <!-- Fix node module imports first -->
+  <script src="/fix-node-modules.js"></script>
+  
+  <!-- Critical Firebase patches applied before any React code runs -->
+  <script src="/firebase-fix.js"></script>
+  
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      background-color: #000;
+      color: #fff;
+    }
+    
+    .loading-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      text-align: center;
+    }
+    
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid rgba(255, 255, 255, 0.1);
+      border-radius: 50%;
+      border-top: 4px solid #fff;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .loading-text {
+      margin-top: 16px;
+      font-size: 18px;
+    }
+  </style>
+</head>
+<body>
+  <div class="loading-container">
+    <div class="spinner"></div>
+    <p class="loading-text">Loading Selah...</p>
+    <p class="loading-text" style="font-size: 14px; margin-top: 8px;">Your daily devotion is on its way</p>
+  </div>
+  
+  <script>
+    // Apply critical Firebase patches
+    if (typeof window !== 'undefined') {
+      window._isFirebaseServerApp = function() { return false; };
+      window._registerComponent = function(component) { return component; };
+      window._getProvider = function() { 
+        return { 
+          getImmediate: function() { return {}; }, 
+          get: function() { return {}; } 
+        }; 
+      };
+      
+      console.log('Applied Firebase patches in static HTML');
+      
+      // Redirect to the app after a short delay
+      setTimeout(function() {
+        window.location.href = '/';
+      }, 1500);
+    }
+  </script>
+  
+  <!-- Firebase patch script applied early -->
+  <script src="/firebase-patch.js" async></script>
+</body>
+</html> 

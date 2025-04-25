@@ -6,12 +6,14 @@ import { getFirebaseDb } from "@/lib/firebase/firebase";
 import { doc, setDoc } from "firebase/firestore";
 import { toast, Toaster } from "react-hot-toast";
 import { useRouter } from "next/navigation";
+import { safeDoc, safeSetDoc } from "@/lib/utils/firebase-helpers";
 
 interface MonthData {
   month: string;
   hymn: {
     title: string;
     lyrics: string[];
+    author?: string;
   };
   devotions: DevotionData[];
 }
@@ -184,14 +186,12 @@ export default function BulkUploadDevotions() {
           // Save hymn data
           try {
             console.log(`Saving hymn for ${data.month}`);
-            const hymnRef = doc(db, "hymns", data.month.toLowerCase());
-            await setDoc(hymnRef, {
+            const hymnRef = safeDoc("hymns", data.month.toLowerCase());
+            await safeSetDoc(hymnRef, {
               title: data.hymn.title,
               lyrics: data.hymn.lyrics,
-              month: data.month,
-              createdAt: new Date().toISOString(),
+              author: data.hymn.author,
               updatedAt: new Date().toISOString(),
-              createdBy: user.email,
             });
             successCount++;
             console.log(`Successfully saved hymn for ${data.month}`);
@@ -205,12 +205,11 @@ export default function BulkUploadDevotions() {
             try {
               console.log(`Processing devotion for date: ${devotion.date}`);
               const transformedDevotion = transformDevotion(devotion);
-              const devotionRef = doc(
-                db,
+              const devotionRef = safeDoc(
                 "devotions",
                 transformedDevotion.date
               );
-              await setDoc(devotionRef, {
+              await safeSetDoc(devotionRef, {
                 ...transformedDevotion,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),

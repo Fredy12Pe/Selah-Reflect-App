@@ -4,7 +4,7 @@
  */
 
 // Check if we're in a browser environment
-export const isBrowser = typeof window !== 'undefined';
+export const isBrowser = () => typeof window !== 'undefined';
 
 // Check if we're in a Netlify environment
 export const isNetlify = process.env.NETLIFY === 'true';
@@ -13,21 +13,29 @@ export const isNetlify = process.env.NETLIFY === 'true';
 export const isNetlifyBuild = 
   isNetlify && 
   process.env.NEXT_PUBLIC_NETLIFY_CONTEXT === 'production' && 
-  !isBrowser;
+  !isBrowser();
+
+// Check if API routes should be skipped (build time)
+export const shouldSkipApiRoutes = process.env.SKIP_API_ROUTES === 'true';
+
+// Check if Firebase Admin should be skipped (build time)
+export const shouldSkipFirebaseAdmin = process.env.SKIP_FIREBASE_ADMIN === 'true';
 
 // Check if we're in a build process that should skip Firebase initialization
 export const isBuildProcess = 
   process.env.NEXT_PUBLIC_IS_NETLIFY_BUILD === 'true' || 
-  isNetlifyBuild;
+  isNetlifyBuild ||
+  shouldSkipApiRoutes;
 
 // Check if Firebase initialization should be skipped (build time)
 export const shouldSkipFirebaseInit = 
-  (process.env.SKIP_FIREBASE_INIT_ON_BUILD === 'true' && !isBrowser) || 
-  isBuildProcess;
+  (process.env.SKIP_FIREBASE_INIT_ON_BUILD === 'true' && !isBrowser()) || 
+  isBuildProcess ||
+  shouldSkipFirebaseAdmin;
 
 // Safe function to conditionally run code only in browser environment
 export const runInBrowser = (callback: () => any) => {
-  if (isBrowser) {
+  if (isBrowser()) {
     return callback();
   }
   return null;
@@ -35,7 +43,7 @@ export const runInBrowser = (callback: () => any) => {
 
 // Helper function to safely access Firebase services
 export const safeFirebaseAccess = <T>(service: T | undefined, fallback: T): T => {
-  if (!isBrowser) return fallback;
+  if (!isBrowser()) return fallback;
   if (service === undefined) return fallback;
   return service;
 }; 

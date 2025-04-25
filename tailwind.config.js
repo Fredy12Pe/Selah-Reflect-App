@@ -16,6 +16,10 @@ module.exports = {
         'safe-top': 'env(safe-area-inset-top)',
         'safe-bottom': 'env(safe-area-inset-bottom)',
       },
+      fontFamily: {
+        'sans': ['var(--font-inter)', 'Inter', 'system-ui', 'sans-serif'],
+        'outfit': ['var(--font-outfit)', 'Outfit', 'system-ui', 'sans-serif'],
+      },
     },
   },
   plugins: [],

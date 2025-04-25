@@ -42,3 +42,6 @@ serviceAccountKey.json
 # IDE
 .idea/
 .vscode/
+
+# Local Netlify folder
+.netlify
