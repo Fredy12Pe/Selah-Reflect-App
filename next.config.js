@@ -32,6 +32,29 @@ const nextConfig = {
           excludeAliases: ['console']
         })
       );
+      
+      // Special case for handling node: prefixed imports
+      // This needs to be prioritized over the NodePolyfillPlugin
+      config.module = config.module || {};
+      config.module.rules = config.module.rules || [];
+      
+      // Add a rule to handle node: URI imports directly
+      config.module.rules.push({
+        test: /\.js$/,
+        include: [
+          /node_modules\/@firebase\/storage/,
+          /node_modules\/firebase\/storage/,
+          /node_modules\/@fastify\/busboy/,
+          /node_modules\/undici/
+        ],
+        resolve: {
+          alias: {
+            'node:events': path.resolve(__dirname, 'shims/node-events.js'),
+            'node:stream': path.resolve(__dirname, 'shims/node-stream.js'),
+            'node:util': path.resolve(__dirname, 'shims/node-util.js')
+          }
+        }
+      });
     }
     
     // Fixes npm packages that depend on `fs` module
@@ -60,9 +83,9 @@ const nextConfig = {
         'http2': false,
         'dns': false,
         // Fix for node: URI imports
-        'node:stream': require.resolve('stream-browserify'),
-        'node:util': require.resolve('util/'),
-        'node:events': require.resolve('events/'),
+        'node:stream': path.resolve(__dirname, 'shims/node-stream.js'),
+        'node:util': path.resolve(__dirname, 'shims/node-util.js'),
+        'node:events': path.resolve(__dirname, 'shims/node-events.js'),
         events: require.resolve('events/'),
       };
 
@@ -85,9 +108,9 @@ const nextConfig = {
         'http2': path.resolve(__dirname, 'shims/http2.js'),
         'dns': path.resolve(__dirname, 'shims/dns.js'),
         // Alias node: prefixed imports to their browserify equivalents
-        'node:stream': require.resolve('stream-browserify'),
-        'node:util': require.resolve('util/'),
-        'node:events': require.resolve('events/'),
+        'node:stream': path.resolve(__dirname, 'shims/node-stream.js'),
+        'node:util': path.resolve(__dirname, 'shims/node-util.js'),
+        'node:events': path.resolve(__dirname, 'shims/node-events.js'),
       };
       
       // Add the Buffer polyfill for client-side

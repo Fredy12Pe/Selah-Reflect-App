@@ -1,12 +1,12 @@
 [build]
-  command = "node netlify-build.js"
+  command = "node patches/firebase-storage-fix/patch-node-imports.js && next build"
   publish = ".next"
 
 [build.environment]
   NEXT_TELEMETRY_DISABLED = "1"
   NETLIFY = "true"
-  NODE_VERSION = "18"
-  NPM_FLAGS = "--legacy-peer-deps"
+  NODE_VERSION = "20.11.1"
+  NPM_VERSION = "10.2.4"
   # Explicitly set build mode to help with conditional rendering
   NEXT_PUBLIC_NETLIFY_CONTEXT = "production"
   # Skip Firebase initialization during build
@@ -18,9 +18,17 @@
 # Set environment variables based on context
 [context.production.environment]
   NEXT_PUBLIC_NETLIFY_CONTEXT = "production"
+  NODE_VERSION = "20.11.1"
+  NPM_VERSION = "10.2.4"
 
 [context.deploy-preview.environment]
   NEXT_PUBLIC_NETLIFY_CONTEXT = "preview"
+  NODE_VERSION = "20.11.1"
+  NPM_VERSION = "10.2.4"
+
+[context.branch-deploy.environment]
+  NODE_VERSION = "20.11.1"
+  NPM_VERSION = "10.2.4"
 
 # Improve performance and security
 [[headers]]
@@ -72,3 +80,5 @@
   from = "/*"
   to = "/index.html"
   status = 200
+  force = false
+  conditions = {Role = ["anonymous"]}
