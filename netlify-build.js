@@ -114,14 +114,35 @@ try {
   // Continue to build even if dependency installation fails
 }
 
-// Patch undici issue with async_hooks
+// Patch Node.js built-in modules used by undici and other dependencies
 try {
-  console.log(`${colors.bright}${colors.cyan}🔧 Patching undici for browser compatibility...${colors.reset}`);
+  console.log(`${colors.bright}${colors.cyan}🔧 Patching Node.js dependencies for browser compatibility...${colors.reset}`);
   
-  // Patching undici in @firebase/storage
+  // Create an empty stream/web.js file as a shim
+  const streamWebShimPath = path.join(process.cwd(), 'node_modules', 'stream', 'web.js');
+  const streamDirPath = path.join(process.cwd(), 'node_modules', 'stream');
+  
+  if (!fs.existsSync(streamDirPath)) {
+    fs.mkdirSync(streamDirPath, { recursive: true });
+  }
+  
+  // Create a basic shim for stream/web
+  const streamWebShim = `
+// This is a shim for stream/web to allow builds to complete
+module.exports = {
+  ReadableStream: class ReadableStream {},
+  WritableStream: class WritableStream {},
+  TransformStream: class TransformStream {},
+  // Add more exports as needed
+};
+`;
+  fs.writeFileSync(streamWebShimPath, streamWebShim);
+  console.log(`${colors.bright}${colors.green}✅ Created stream/web shim at ${streamWebShimPath}${colors.reset}`);
+  
+  // Patching undici in @firebase/storage for async_hooks
   const undiciPaths = [
     './node_modules/@firebase/storage/node_modules/undici/lib/api/api-connect.js',
-    './node_modules/@firebase/storage/node_modules/undici/lib/api/api-upgrade.js'
+    './node_modules/@firebase/storage/node_modules/undici/lib/api/api-upgrade.js',
   ];
 
   for (const filePath of undiciPaths) {
@@ -138,9 +159,47 @@ try {
       fs.writeFileSync(filePath, fileContent);
     }
   }
-  console.log(`${colors.bright}${colors.green}✅ Undici patched successfully${colors.reset}`);
+  
+  // Check for stream/web imports in undici files
+  const undiciDir = './node_modules/@firebase/storage/node_modules/undici';
+  if (fs.existsSync(undiciDir)) {
+    // Find all JavaScript files
+    const findJsFiles = (dir, fileList = []) => {
+      const files = fs.readdirSync(dir);
+      for (const file of files) {
+        const filePath = path.join(dir, file);
+        const stat = fs.statSync(filePath);
+        if (stat.isDirectory()) {
+          findJsFiles(filePath, fileList);
+        } else if (file.endsWith('.js')) {
+          fileList.push(filePath);
+        }
+      }
+      return fileList;
+    };
+    
+    const jsFiles = findJsFiles(undiciDir);
+    for (const filePath of jsFiles) {
+      try {
+        let content = fs.readFileSync(filePath, 'utf8');
+        if (content.includes("require('stream/web')")) {
+          console.log(`Patching stream/web import in ${filePath}...`);
+          // Replace the require with our shim
+          content = content.replace(
+            "require('stream/web')",
+            "require('../../../stream/web')"
+          );
+          fs.writeFileSync(filePath, content);
+        }
+      } catch (e) {
+        console.error(`Error processing file ${filePath}: ${e.message}`);
+      }
+    }
+  }
+  
+  console.log(`${colors.bright}${colors.green}✅ Undici patches applied successfully${colors.reset}`);
 } catch (error) {
-  console.error(`${colors.bright}${colors.red}❌ Failed to patch undici${colors.reset}`);
+  console.error(`${colors.bright}${colors.red}❌ Failed to patch dependencies${colors.reset}`);
   console.error(error);
   // Continue to build even if patching fails
 }
