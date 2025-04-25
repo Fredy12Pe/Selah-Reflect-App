@@ -7,6 +7,7 @@ const withPWA = require('next-pwa')({
 });
 
 const path = require('path');
+const NodePolyfillPlugin = require('node-polyfill-webpack-plugin');
 
 const nextConfig = {
   images: {
@@ -24,6 +25,15 @@ const nextConfig = {
   },
   // Modify webpack config for Netlify
   webpack: (config, { isServer }) => {
+    // Add NodePolyfillPlugin to handle node:* imports
+    if (!isServer) {
+      config.plugins.push(
+        new NodePolyfillPlugin({
+          excludeAliases: ['console']
+        })
+      );
+    }
+    
     // Fixes npm packages that depend on `fs` module
     if (!isServer) {
       config.resolve.fallback = {
