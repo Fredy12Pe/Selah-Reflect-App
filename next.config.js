@@ -44,6 +44,11 @@ const nextConfig = {
         'util/types': false,
         'worker_threads': false,
         util: require.resolve('util/'),
+        // Additional modules from error logs
+        'perf_hooks': false,
+        'diagnostics_channel': false,
+        'http2': false,
+        'dns': false,
       };
 
       // Force resolving Firebase dependencies for client builds
@@ -59,6 +64,11 @@ const nextConfig = {
         'worker_threads': path.resolve(__dirname, 'shims/worker-threads.js'),
         // Handle Firestore Node.js bundle imports in the browser
         '@firebase/firestore/dist/index.node.mjs': path.resolve(__dirname, 'shims/firestore-browser.js'),
+        // Additional Node.js modules from error logs
+        'perf_hooks': path.resolve(__dirname, 'shims/perf-hooks.js'),
+        'diagnostics_channel': path.resolve(__dirname, 'shims/diagnostics-channel.js'),
+        'http2': path.resolve(__dirname, 'shims/http2.js'),
+        'dns': path.resolve(__dirname, 'shims/dns.js'),
       };
       
       // Add the Buffer polyfill for client-side
@@ -82,6 +92,11 @@ const nextConfig = {
       { message: /'_isFirebaseServerApp' is not exported from '@firebase\/app'/ },
       { message: /Attempted import error/ },
       { message: /Module not found: Can't resolve/ },
+      // Additional warning patterns from error logs
+      { message: /Can't resolve 'perf_hooks'/ },
+      { message: /Can't resolve 'diagnostics_channel'/ },
+      { message: /Can't resolve 'http2'/ },
+      { message: /Can't resolve 'dns'/ },
     ];
 
     return config;

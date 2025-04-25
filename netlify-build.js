@@ -114,7 +114,7 @@ fs.copyFileSync(tempEnvPath, envLocalPath);
 if (!isDryRun || isNetlifyTest) {
   try {
     console.log(`${colors.bright}${colors.cyan}🔍 Checking for missing dependencies...${colors.reset}`);
-    execSync('npm install --save @firebase/app @firebase/auth @firebase/firestore @firebase/storage @firebase/util @firebase/component console-browserify buffer util path-browserify stream-browserify', { stdio: 'inherit' });
+    execSync('npm install --save @firebase/app @firebase/auth @firebase/firestore @firebase/storage @firebase/util @firebase/component console-browserify buffer util path-browserify stream-browserify browserify-zlib stream-http https-browserify os-browserify', { stdio: 'inherit' });
     console.log(`${colors.bright}${colors.green}✅ Dependencies installed successfully${colors.reset}`);
   } catch (error) {
     console.error(`${colors.bright}${colors.red}❌ Failed to install dependencies${colors.reset}`);
@@ -181,6 +181,89 @@ export * from '@firebase/firestore';
 
 // Add a mock for _isFirebaseServerApp since it's missing from the browser version
 export const _isFirebaseServerApp = false;`
+  },
+  {
+    path: path.join(shimDir, 'perf-hooks.js'),
+    content: `// Shim for Node.js perf_hooks module in the browser
+module.exports = {
+  performance: typeof performance !== 'undefined' ? performance : {
+    now: () => Date.now(),
+    mark: () => {},
+    measure: () => {},
+    getEntriesByName: () => [],
+    getEntriesByType: () => [],
+    clearMarks: () => {},
+    clearMeasures: () => {}
+  },
+  PerformanceObserver: class PerformanceObserver {
+    constructor() {}
+    observe() {}
+    disconnect() {}
+  },
+  monitorEventLoopDelay: () => ({
+    enable: () => {},
+    disable: () => {},
+    reset: () => {}
+  })
+};`
+  },
+  {
+    path: path.join(shimDir, 'diagnostics-channel.js'),
+    content: `// Shim for Node.js diagnostics_channel module in the browser
+module.exports = {
+  channel: () => ({
+    hasSubscribers: false,
+    publish: () => false,
+    subscribe: () => {},
+    unsubscribe: () => {}
+  }),
+  hasSubscribers: () => false,
+  channels: {},
+  tracingChannel: () => null
+};`
+  },
+  {
+    path: path.join(shimDir, 'http2.js'),
+    content: `// Shim for Node.js http2 module in the browser
+module.exports = {
+  constants: {},
+  getDefaultSettings: () => ({}),
+  getPackedSettings: () => ({}),
+  getUnpackedSettings: () => ({}),
+  createServer: () => ({}),
+  createSecureServer: () => ({}),
+  connect: () => ({
+    close: () => {},
+    on: () => {},
+    once: () => {},
+    setTimeout: () => {}
+  })
+};`
+  },
+  {
+    path: path.join(shimDir, 'dns.js'),
+    content: `// Shim for Node.js dns module in the browser
+module.exports = {
+  lookup: (hostname, options, callback) => {
+    if (typeof options === 'function') {
+      callback = options;
+      options = {};
+    }
+    if (typeof callback === 'function') {
+      // Always return localhost in browser environment
+      callback(null, '127.0.0.1', 4);
+    }
+  },
+  resolve: (hostname, callback) => {
+    if (typeof callback === 'function') {
+      callback(null, ['127.0.0.1']);
+    }
+  },
+  promises: {
+    lookup: async () => ({ address: '127.0.0.1', family: 4 }),
+    resolve: async () => ['127.0.0.1']
+  }
+};`
   }
 ];
 
@@ -374,6 +457,46 @@ module.exports = console;`
         modified = true;
       }
       
+      // Fix perf_hooks imports
+      if (content.includes("require('perf_hooks')")) {
+        console.log(`Patching perf_hooks import in ${filePath}...`);
+        content = content.replace(
+          "require('perf_hooks')",
+          `require('${path.relative(path.dirname(filePath), path.join(process.cwd(), 'shims', 'perf-hooks.js')).replace(/\\/g, '/')}')`
+        );
+        modified = true;
+      }
+      
+      // Fix diagnostics_channel imports
+      if (content.includes("require('diagnostics_channel')")) {
+        console.log(`Patching diagnostics_channel import in ${filePath}...`);
+        content = content.replace(
+          "require('diagnostics_channel')",
+          `require('${path.relative(path.dirname(filePath), path.join(process.cwd(), 'shims', 'diagnostics-channel.js')).replace(/\\/g, '/')}')`
+        );
+        modified = true;
+      }
+      
+      // Fix http2 imports
+      if (content.includes("require('http2')")) {
+        console.log(`Patching http2 import in ${filePath}...`);
+        content = content.replace(
+          "require('http2')",
+          `require('${path.relative(path.dirname(filePath), path.join(process.cwd(), 'shims', 'http2.js')).replace(/\\/g, '/')}')`
+        );
+        modified = true;
+      }
+      
+      // Fix dns imports
+      if (content.includes("require('dns')")) {
+        console.log(`Patching dns import in ${filePath}...`);
+        content = content.replace(
+          "require('dns')",
+          `require('${path.relative(path.dirname(filePath), path.join(process.cwd(), 'shims', 'dns.js')).replace(/\\/g, '/')}')`
+        );
+        modified = true;
+      }
+      
       if (modified) {
         fs.writeFileSync(filePath, content);
       }
@@ -389,7 +512,9 @@ module.exports = console;`
     './node_modules/undici',
     './node_modules/@firebase/app',
     './node_modules/@firebase/firestore',
-    './node_modules/@firebase/auth'
+    './node_modules/@firebase/auth',
+    './node_modules/@grpc/grpc-js',
+    './node_modules/firebase',
   ];
   
   for (const dir of dirsToProcess) {

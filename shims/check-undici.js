@@ -29,6 +29,9 @@ console.log(`${colors.cyan}Scanning for problematic imports in Undici-related mo
 const undiciPaths = [
   path.join(process.cwd(), 'node_modules', 'undici'),
   path.join(process.cwd(), 'node_modules', '@firebase', 'storage', 'node_modules', 'undici'),
+  path.join(process.cwd(), 'node_modules', '@firebase', 'firestore'),
+  path.join(process.cwd(), 'node_modules', '@grpc', 'grpc-js'),
+  path.join(process.cwd(), 'node_modules', 'firebase'),
 ];
 
 // Map of problematic imports to look for and their fixes
@@ -56,6 +59,22 @@ const problematicImports = {
   "require('net')": {
     problem: "Imports 'net' Node.js module which doesn't exist in browser",
     fix: "Falls back to empty object in next.config.js"
+  },
+  "require('perf_hooks')": {
+    problem: "Imports perf_hooks which doesn't exist in browser",
+    fix: "Redirect to shim/perf-hooks.js"
+  },
+  "require('diagnostics_channel')": {
+    problem: "Imports diagnostics_channel which doesn't exist in browser",
+    fix: "Redirect to shim/diagnostics-channel.js"
+  },
+  "require('http2')": {
+    problem: "Imports http2 which doesn't exist in browser",
+    fix: "Redirect to shim/http2.js"
+  },
+  "require('dns')": {
+    problem: "Imports dns which doesn't exist in browser",
+    fix: "Redirect to shim/dns.js"
   }
 };
 
