@@ -49,6 +49,11 @@ const nextConfig = {
         'diagnostics_channel': false,
         'http2': false,
         'dns': false,
+        // Fix for node: URI imports
+        'node:stream': require.resolve('stream-browserify'),
+        'node:util': require.resolve('util/'),
+        'node:events': require.resolve('events/'),
+        events: require.resolve('events/'),
       };
 
       // Force resolving Firebase dependencies for client builds
@@ -69,6 +74,10 @@ const nextConfig = {
         'diagnostics_channel': path.resolve(__dirname, 'shims/diagnostics-channel.js'),
         'http2': path.resolve(__dirname, 'shims/http2.js'),
         'dns': path.resolve(__dirname, 'shims/dns.js'),
+        // Alias node: prefixed imports to their browserify equivalents
+        'node:stream': require.resolve('stream-browserify'),
+        'node:util': require.resolve('util/'),
+        'node:events': require.resolve('events/'),
       };
       
       // Add the Buffer polyfill for client-side
@@ -97,6 +106,11 @@ const nextConfig = {
       { message: /Can't resolve 'diagnostics_channel'/ },
       { message: /Can't resolve 'http2'/ },
       { message: /Can't resolve 'dns'/ },
+      // Node URI import errors
+      { message: /Can't resolve 'node:stream'/ },
+      { message: /Can't resolve 'node:util'/ },
+      { message: /Can't resolve 'node:events'/ },
+      { message: /Can't resolve 'events'/ },
     ];
 
     return config;
@@ -110,7 +124,8 @@ const nextConfig = {
     '@firebase/functions', 
     '@firebase/database',
     '@firebase/util',
-    '@firebase/component'
+    '@firebase/component',
+    'events'
   ],
 }
 
