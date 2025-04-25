@@ -11,6 +11,11 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
+// Print environment information
+console.log('Node.js version:', process.version);
+console.log('NPM version:', execSync('npm --version').toString().trim());
+console.log('Environment:', process.env.NODE_ENV);
+
 // Check if this is a dry run (for testing purposes)
 const isDryRun = process.argv.includes('--dry-run') || process.env.DRY_RUN === 'true';
 const isNetlifyTest = process.env.NETLIFY_TEST === 'true';
