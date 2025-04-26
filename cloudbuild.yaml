@@ -1,8 +1,8 @@
 steps:
-  # Install dependencies
+  # Install dependencies with regular npm install instead of npm ci
   - name: "node:20"
     entrypoint: npm
-    args: ["ci"]
+    args: ["install", "--no-optional"]
 
   # Run our custom build script
   - name: "node:20"

@@ -1,0 +1,27 @@
+{
+  "steps": [
+    {
+      "name": "node:20",
+      "entrypoint": "npm",
+      "args": ["install", "--no-optional"]
+    },
+    {
+      "name": "node:20",
+      "entrypoint": "npm",
+      "args": ["run", "build:firebase"]
+    },
+    {
+      "name": "node:20",
+      "entrypoint": "bash",
+      "args": ["-c", "cp -r out/* ."]
+    },
+    {
+      "name": "gcr.io/$PROJECT_ID/firebase",
+      "args": ["deploy", "--only", "hosting"]
+    }
+  ],
+  "timeout": "1800s",
+  "options": {
+    "logging": "CLOUD_LOGGING_ONLY"
+  }
+} 
