@@ -23,6 +23,10 @@ import {
 import { toast } from "react-hot-toast";
 import { Devotion, ReflectionSection } from "@/lib/types/devotion";
 
+// Add generateStaticParams in a separate file to make it compatible with static export
+// This file should be placed in the same directory
+// This is necessary because we can't use "use client" and export generateStaticParams in the same file
+
 interface JournalEntry {
   [sectionId: string]: {
     [questionId: string]: string;

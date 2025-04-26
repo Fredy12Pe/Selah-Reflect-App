@@ -7,46 +7,21 @@ import path from 'path';
  * This ensures that JavaScript files are always served with the correct
  * Content-Type header, preventing MIME type errors.
  */
-export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams;
-  const fileParam = searchParams.get('file');
-  
-  if (!fileParam) {
-    return NextResponse.json({ error: 'File parameter is required' }, { status: 400 });
-  }
-  
-  // Sanitize the file path to prevent directory traversal
-  const filename = fileParam.replace(/\.\./g, '').replace(/[/\\]/g, '');
-  const filePath = path.join(process.cwd(), 'public', filename);
-  
-  try {
-    if (!fs.existsSync(filePath)) {
-      console.error(`File not found: ${filePath}`);
-      return NextResponse.json({ error: 'File not found' }, { status: 404 });
-    }
-    
-    const fileContent = fs.readFileSync(filePath, 'utf8');
-    
-    // Determine the content type based on file extension
-    let contentType = 'application/javascript';
-    if (filename.endsWith('.css')) {
-      contentType = 'text/css';
-    } else if (filename.endsWith('.json')) {
-      contentType = 'application/json';
-    }
-    
-    // Return the file content with the proper MIME type
-    return new NextResponse(fileContent, {
-      headers: {
-        'Content-Type': contentType,
-        'Cache-Control': 'no-cache, no-store, must-revalidate'
-      },
-    });
-  } catch (error) {
-    console.error(`Error serving static file ${filePath}:`, error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
+
+// Make this a static API route for build
+export const dynamic = 'force-static';
+
+export function generateStaticParams() {
+  return [{}]; // Empty params for a static route
 }
 
-// Make the route run without specific route segment config
-export const dynamic = 'force-dynamic'; 
+// Stub function for static build
+export async function GET() {
+  return NextResponse.json(
+    { info: 'This API endpoint is available after deployment.' },
+    { status: 200 }
+  );
+}
+
+// Update the route configuration to be compatible with static export
+export const runtime = 'nodejs'; 

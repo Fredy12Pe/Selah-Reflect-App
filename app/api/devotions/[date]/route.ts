@@ -5,6 +5,17 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { initAdmin } from '@/lib/firebase/admin';
 import { Devotion } from '@/lib/types/devotion';
 
+// Configure this route for static builds
+export const dynamic = 'error';
+export const runtime = 'nodejs';
+
+// Add generateStaticParams to make it compatible with static exports
+export function generateStaticParams() {
+  // This is just a placeholder to make the static export work
+  // For static exports, this API will be called client-side
+  return [{ date: 'placeholder' }];
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { date: string } }
