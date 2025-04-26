@@ -25,10 +25,21 @@ const HTML_PATHS = [
 
 console.log('🚀 Starting improved build process...');
 
+// FORCE CLEAN: Delete output directory if it exists
+if (fs.existsSync(OUTPUT_DIR)) {
+  console.log(`🧹 Cleaning existing output directory: ${OUTPUT_DIR}`);
+  try {
+    execSync(`rm -rf ${OUTPUT_DIR}`);
+    console.log(`✅ Removed old output directory`);
+  } catch (error) {
+    console.error(`❌ Error removing directory: ${error.message}`);
+  }
+}
+
 // Always ensure the output directory exists
 if (!fs.existsSync(OUTPUT_DIR)) {
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
-  console.log(`📁 Created output directory: ${OUTPUT_DIR}`);
+  console.log(`📁 Created fresh output directory: ${OUTPUT_DIR}`);
 } else {
   console.log(`📁 Using existing output directory: ${OUTPUT_DIR}`);
 }

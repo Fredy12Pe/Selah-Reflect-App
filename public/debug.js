@@ -3,6 +3,9 @@
  * This script helps identify where Firebase initialization is failing
  */
 
+// Debug script added on: ${new Date().toISOString()}
+// This forces a rebuild in Netlify
+
 (function() {
   console.log('[Debug] Starting debug script...');
   
