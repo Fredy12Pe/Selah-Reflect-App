@@ -1,0 +1,16 @@
+# Google Cloud Buildpacks configuration
+[[build.env]]
+name = "NODE_OPTIONS"
+value = "--max-old-space-size=4096"
+
+[[build.env]]
+name = "GOOGLE_SKIP_LOCKFILE_VALIDATION"
+value = "true"
+
+[[build.env]]
+name = "NODE_ENV"
+value = "production"
+
+# Build command
+[build]
+command = "npm install && npm run build:firebase && cp -r out/* ." 

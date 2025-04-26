@@ -1,0 +1,43 @@
+{
+  "name": "selah-reflect-app",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": "20.x"
+  },
+  "scripts": {
+    "build": "next build",
+    "start": "next start",
+    "deploy": "firebase deploy --only hosting"
+  },
+  "dependencies": {
+    "@firebase/app": "^0.9.29",
+    "@firebase/auth": "^1.10.1",
+    "@firebase/component": "^0.6.13",
+    "@firebase/firestore": "^4.7.11",
+    "@firebase/storage": "^0.12.6",
+    "@firebase/util": "^1.11.0",
+    "@headlessui/react": "^2.2.2",
+    "@heroicons/react": "^2.0.18",
+    "browserify-zlib": "^0.2.0",
+    "buffer": "^6.0.3",
+    "console-browserify": "^1.2.0",
+    "crypto-browserify": "^3.12.1",
+    "date-fns": "^2.30.0",
+    "dotenv": "^16.5.0",
+    "events": "^3.3.0",
+    "firebase": "^10.8.0",
+    "https-browserify": "^1.0.0",
+    "next": "14.1.0",
+    "next-pwa": "^5.6.0",
+    "os-browserify": "^0.3.0",
+    "path-browserify": "^1.0.1",
+    "react": "^18.2.0",
+    "react-datepicker": "^8.3.0",
+    "react-dom": "^18.2.0",
+    "react-hot-toast": "^2.4.1",
+    "stream-browserify": "^3.0.0",
+    "stream-http": "^3.2.0",
+    "util": "^0.12.5"
+  }
+} 

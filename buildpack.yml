@@ -1,0 +1,10 @@
+---
+# Buildpack configuration
+nodejs:
+  # Skip running npm ci and use npm install instead
+  optimize_memory: true
+  node_modules:
+    node_modules_cache: true # Cache node_modules for faster builds
+  build_command: "npm install && npm run build:firebase && cp -r out/* ."
+  run_command: "npm start"
+  skip_npm_ci: true # Skip npm ci and use npm install
