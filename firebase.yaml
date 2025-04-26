@@ -1,0 +1,33 @@
+---
+# Firebase hosting configuration
+hosting:
+  # Configure Firebase hosting
+  public: out
+  ignore:
+    - firebase.json
+    - "**/.*"
+    - "**/node_modules/**"
+  cleanUrls: true
+  trailingSlash: false
+  rewrites:
+    - source: "/devotion/**"
+      destination: "/devotion/[date].html"
+    - source: "/devotion/**/journal"
+      destination: "/devotion/[date]/journal.html"
+    - source: "/devotion/**/reflection"
+      destination: "/devotion/[date]/reflection.html"
+    - source: "**"
+      destination: "/index.html"
+  headers:
+    - source: "**/*.html"
+      headers:
+        - key: "Cache-Control"
+          value: "no-cache, no-store, must-revalidate"
+    - source: "**/*.@(js|css)"
+      headers:
+        - key: "Cache-Control"
+          value: "public, max-age=31536000, immutable"
+    - source: "**/*.@(jpg|jpeg|gif|png|svg|webp|ico|eot|otf|ttf|ttc|woff|woff2|font.css)"
+      headers:
+        - key: "Cache-Control"
+          value: "public, max-age=31536000, immutable"

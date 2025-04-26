@@ -1,0 +1,18 @@
+# .gcloudignore
+.git/
+.gitignore
+.github/
+node_modules/
+.next/
+README.md
+*.log
+*.lock
+*.md
+*.sh
+.DS_Store
+.env*
+!.env.example
+!out/
+!public/
+!firebase.json
+!firebase.yaml 
