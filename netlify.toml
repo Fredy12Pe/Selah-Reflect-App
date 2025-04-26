@@ -17,11 +17,7 @@
   NEXT_STATIC_EXPORT = "true"
   TYPESCRIPT_IGNORE_BUILD_ERRORS = "true"
 
-# Explicitly disable the Next.js plugin since we're using static export
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
-  [plugins.inputs]
-    enable = false
+# Note: We're using a custom static export, not the Next.js plugin
 
 [build.processing]
   skip_processing = true
