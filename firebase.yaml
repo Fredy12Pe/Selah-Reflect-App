@@ -2,11 +2,19 @@
 # Firebase hosting configuration
 hosting:
   # Configure Firebase hosting
-  public: out
+  public: .
   ignore:
     - firebase.json
     - "**/.*"
     - "**/node_modules/**"
+    - "cloudbuild.yaml"
+    - "firebase.yaml"
+    - ".next/**"
+    - "app/**"
+    - "lib/**"
+    - "scripts/**"
+    - "src/**"
+    - "node_modules/**"
   cleanUrls: true
   trailingSlash: false
   rewrites:
