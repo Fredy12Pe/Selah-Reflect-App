@@ -17,6 +17,12 @@
   NEXT_STATIC_EXPORT = "true"
   TYPESCRIPT_IGNORE_BUILD_ERRORS = "true"
 
+# Explicitly disable the Next.js plugin since we're using static export
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+  [plugins.inputs]
+    enable = false
+
 [build.processing]
   skip_processing = true
 
@@ -33,10 +39,6 @@
 
 [build.processing.images]
   compress = true
-
-# Next.js plugin not needed for static HTML builds
-# [[plugins]]
-#   package = "@netlify/plugin-nextjs"
 
 # Add security headers
 [[headers]]
