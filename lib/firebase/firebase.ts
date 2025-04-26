@@ -3,8 +3,13 @@ import { getAuth, Auth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { isBrowser, shouldSkipFirebaseInit } from '../utils/environment';
-import '../firebase/patch'; // Import patch before Firebase is initialized
-import '../firebase/patchAuth'; // Import auth-specific patch
+
+// Import patches conditionally to avoid server-side issues
+if (isBrowser()) {
+  // Only import patches in browser environment
+  require('../firebase/patch');
+  require('../firebase/patchAuth');
+}
 
 // Firebase configuration
 export const firebaseConfig = {
@@ -28,31 +33,16 @@ if (isBrowser()) {
   });
 }
 
-// Initialize Firebase (with error handling)
+// Create placeholder objects that will be safely replaced in browser context
 let app: FirebaseApp = {} as FirebaseApp;
 let auth: Auth = {} as Auth;
 let firestore: Firestore = {} as Firestore;
 let storage: any = {};
 
-try {
-  // Skip initialization during server-side rendering or build
-  if (typeof window === 'undefined' || shouldSkipFirebaseInit) {
-    console.log('[Firebase] Skipping initialization (server context)');
-    // Empty objects already initialized
-  } 
-  // Initialize in browser environment
-  else {
+// Initialize Firebase only in browser context
+if (isBrowser() && !shouldSkipFirebaseInit) {
+  try {
     console.log('[Firebase] Initializing in browser environment');
-    
-    // Apply manual patches to global window object
-    if (typeof window !== 'undefined') {
-      // Ensure these essential functions exist
-      window._isFirebaseServerApp = window._isFirebaseServerApp || function() { return false; };
-      window._registerComponent = window._registerComponent || function(c) { return c; };
-      window._getProvider = window._getProvider || function() { 
-        return { getImmediate: () => ({}), get: () => ({}) }; 
-      };
-    }
     
     // Check if app is already initialized
     if (getApps().length === 0) {
@@ -74,50 +64,64 @@ try {
     storage = getStorage(app);
     
     console.log('[Firebase] All services initialized successfully');
+  } catch (error) {
+    console.error('[Firebase] Initialization error:', error);
+    // Keep using the placeholder objects on error
   }
-} catch (error) {
-  console.error('[Firebase] Initialization error:', error);
-  // No need for fallbacks since variables are already initialized
+} else {
+  console.log('[Firebase] Skipping initialization (server context or build time)');
 }
 
-// Add the utility functions that are imported elsewhere
+// Safe accessor functions with proper guards
 export const getFirebaseAuth = (): Auth | null => {
-  if (shouldSkipFirebaseInit || !isBrowser()) {
-    console.log('Firebase Auth access skipped during build or server rendering');
+  if (!isBrowser() || shouldSkipFirebaseInit) {
     return null;
   }
   
-  if (!auth) {
-    app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-    auth = getAuth(app);
+  try {
+    if (auth && Object.keys(auth).length === 0) {
+      app = getApps().length > 0 ? getApps()[0] : initializeApp(firebaseConfig);
+      auth = getAuth(app);
+    }
+    return auth;
+  } catch (error) {
+    console.error('[Firebase] Error getting Auth:', error);
+    return null;
   }
-  return auth;
 };
 
 export const getFirebaseDb = (): Firestore | null => {
-  if (shouldSkipFirebaseInit || !isBrowser()) {
-    console.log('Firebase Firestore access skipped during build or server rendering');
+  if (!isBrowser() || shouldSkipFirebaseInit) {
     return null;
   }
   
-  if (!firestore) {
-    app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-    firestore = getFirestore(app);
+  try {
+    if (firestore && Object.keys(firestore).length === 0) {
+      app = getApps().length > 0 ? getApps()[0] : initializeApp(firebaseConfig);
+      firestore = getFirestore(app);
+    }
+    return firestore;
+  } catch (error) {
+    console.error('[Firebase] Error getting Firestore:', error);
+    return null;
   }
-  return firestore;
 };
 
 export const getGoogleAuthProvider = (): GoogleAuthProvider | null => {
-  if (shouldSkipFirebaseInit || !isBrowser()) {
-    console.log('Google Auth Provider access skipped during build or server rendering');
+  if (!isBrowser() || shouldSkipFirebaseInit) {
     return null;
   }
   
-  const provider = new GoogleAuthProvider();
-  provider.setCustomParameters({ 
-    prompt: 'select_account',
-  });
-  return provider;
+  try {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ 
+      prompt: 'select_account',
+    });
+    return provider;
+  } catch (error) {
+    console.error('[Firebase] Error creating Google Auth Provider:', error);
+    return null;
+  }
 };
 
 // Export the initialized Firebase instances

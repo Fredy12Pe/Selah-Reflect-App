@@ -2,7 +2,7 @@ import { Fragment, useState, useEffect } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { getFirebaseDb } from "@/lib/firebase";
+import { getFirebaseFirestore } from "@/lib/firebase";
 import { useAuth } from "@/lib/context/AuthContext";
 import { isBrowser } from "@/lib/utils/environment";
 
@@ -31,7 +31,7 @@ export default function JournalModal({
       if (!user || !isOpen || !isBrowser) return;
 
       try {
-        const db = getFirebaseDb();
+        const db = getFirebaseFirestore();
         if (!db) {
           console.error("Firestore not initialized");
           return;
@@ -59,7 +59,7 @@ export default function JournalModal({
     setSaveStatus("idle");
 
     try {
-      const db = getFirebaseDb();
+      const db = getFirebaseFirestore();
       if (!db) {
         console.error("Firestore not initialized");
         setSaveStatus("error");

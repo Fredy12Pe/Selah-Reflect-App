@@ -6,6 +6,11 @@
 // Check if we're in a browser environment
 export const isBrowser = () => typeof window !== 'undefined';
 
+// Check if debug mode is enabled
+export const isDebugMode = () => 
+  process.env.DEBUG_MODE === 'true' || 
+  (isBrowser() && localStorage.getItem('DEBUG_MODE') === 'true');
+
 // Check if we're in a Netlify environment
 export const isNetlify = process.env.NETLIFY === 'true';
 
@@ -27,11 +32,17 @@ export const isBuildProcess =
   isNetlifyBuild ||
   shouldSkipApiRoutes;
 
-// Check if Firebase initialization should be skipped (build time)
+// Check for localStorage flag to skip Firebase (client-side override)
+export const shouldSkipFirebaseFromLocalStorage = () => 
+  isBrowser() && localStorage.getItem('SKIP_FIREBASE') === 'true';
+
+// Check if Firebase initialization should be skipped (build time or client override)
 export const shouldSkipFirebaseInit = 
-  (process.env.SKIP_FIREBASE_INIT_ON_BUILD === 'true' && !isBrowser()) || 
+  (process.env.SKIP_FIREBASE_INIT === 'true' && !isBrowser()) || 
+  process.env.SKIP_FIREBASE_INIT_ON_BUILD === 'true' ||
   isBuildProcess ||
-  shouldSkipFirebaseAdmin;
+  shouldSkipFirebaseAdmin ||
+  shouldSkipFirebaseFromLocalStorage();
 
 // Safe function to conditionally run code only in browser environment
 export const runInBrowser = (callback: () => any) => {

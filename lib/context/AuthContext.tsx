@@ -58,6 +58,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [initAttempted, setInitAttempted] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -99,67 +100,96 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       return;
     }
 
+    // Safety timeout to prevent infinite loading
+    const safetyTimeout = setTimeout(() => {
+      console.warn(
+        "AuthProvider: Safety timeout reached, continuing without auth"
+      );
+      setLoading(false);
+      setInitAttempted(true);
+    }, 8000); // 8 second timeout
+
     // Check if auth is available
     if (!firebaseAuth) {
       console.error("AuthProvider: Firebase Auth is not initialized");
       setLoading(false);
       setError("Firebase authentication is not available");
+      clearTimeout(safetyTimeout);
+      setInitAttempted(true);
       return;
     }
 
     console.log("AuthProvider: Setting up auth state listener");
 
-    // Set up authentication listener
-    const unsubscribe = onAuthStateChanged(
-      firebaseAuth,
-      async (authUser) => {
-        setLoading(true);
+    try {
+      // Set up authentication listener
+      const unsubscribe = onAuthStateChanged(
+        firebaseAuth,
+        async (authUser) => {
+          setLoading(true);
 
-        if (authUser) {
-          console.log("User authenticated:", authUser.uid);
-          setUser(authUser);
+          try {
+            if (authUser) {
+              console.log("User authenticated:", authUser.uid);
+              setUser(authUser);
 
-          // Set the session cookie whenever the user is authenticated
-          await setSessionCookie(authUser);
+              // Set the session cookie whenever the user is authenticated
+              await setSessionCookie(authUser);
 
-          // If on login page and authenticated, redirect to home
-          if (pathname === "/auth/login") {
-            router.push("/");
+              // If on login page and authenticated, redirect to home
+              if (pathname === "/auth/login") {
+                router.push("/");
+              }
+            } else {
+              console.log("No user authenticated");
+              setUser(null);
+              clearSessionCookie();
+
+              // Only redirect to login if on protected route and not already on login page
+              if (
+                pathname &&
+                !pathname.startsWith("/auth/login") &&
+                !pathname.includes("_next") &&
+                !pathname.includes("firebase-fix.js") &&
+                !pathname.includes("firebase-patch.js") &&
+                !pathname.includes("favicon.ico") &&
+                !pathname.includes("manifest.json") &&
+                !pathname.includes("debug.js")
+              ) {
+                console.log("Redirecting to login from:", pathname);
+                router.push("/auth/login");
+              }
+            }
+          } catch (err) {
+            console.error("Error processing auth state:", err);
+          } finally {
+            clearTimeout(safetyTimeout);
+            setLoading(false);
+            setInitAttempted(true);
           }
-        } else {
-          console.log("No user authenticated");
-          setUser(null);
-          clearSessionCookie();
-
-          // Only redirect to login if on protected route and not already on login page
-          if (
-            pathname &&
-            !pathname.startsWith("/auth/login") &&
-            !pathname.includes("_next") &&
-            !pathname.includes("firebase-fix.js") &&
-            !pathname.includes("firebase-patch.js") &&
-            !pathname.includes("favicon.ico") &&
-            !pathname.includes("manifest.json")
-          ) {
-            console.log("Redirecting to login from:", pathname);
-            router.push("/auth/login");
-          }
+        },
+        (error) => {
+          console.error("Auth state change error:", error);
+          setError(error.message);
+          setLoading(false);
+          clearTimeout(safetyTimeout);
+          setInitAttempted(true);
         }
+      );
 
-        setLoading(false);
-      },
-      (error) => {
-        console.error("Auth state change error:", error);
-        setError(error.message);
-        setLoading(false);
-      }
-    );
-
-    // Cleanup subscription
-    return () => {
-      console.log("Cleaning up auth state listener");
-      unsubscribe();
-    };
+      // Cleanup subscription
+      return () => {
+        console.log("Cleaning up auth state listener");
+        clearTimeout(safetyTimeout);
+        unsubscribe();
+      };
+    } catch (err) {
+      console.error("Error setting up auth listener:", err);
+      setLoading(false);
+      clearTimeout(safetyTimeout);
+      setInitAttempted(true);
+      return () => {};
+    }
   }, [router, pathname]);
 
   // Provide default implementations for auth methods if Firebase is unavailable

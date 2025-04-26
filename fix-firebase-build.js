@@ -114,25 +114,48 @@ async function runBuild() {
     cleanupRouteFiles();
     disableAdminPages();
     
+    // Add debug info to help troubleshoot build issues
+    console.log('Environment variables set for build:');
+    console.log('- NETLIFY:', process.env.NETLIFY);
+    console.log('- SKIP_FIREBASE_INIT_ON_BUILD:', process.env.SKIP_FIREBASE_INIT_ON_BUILD);
+    console.log('- SKIP_API_ROUTES:', process.env.SKIP_API_ROUTES);
+    console.log('- SKIP_FIREBASE_ADMIN:', process.env.SKIP_FIREBASE_ADMIN);
+    console.log('- SKIP_FIREBASE_PATCH:', process.env.SKIP_FIREBASE_PATCH);
+    console.log('- NEXT_PUBLIC_IS_NETLIFY_BUILD:', process.env.NEXT_PUBLIC_IS_NETLIFY_BUILD);
+    
     // Run the build with clean environment
     console.log('Running Next.js build...');
-    execSync('next build', { 
-      stdio: 'inherit',
-      env: {
-        ...process.env,
-        NETLIFY: 'true',
-        SKIP_FIREBASE_INIT_ON_BUILD: 'true',
-        SKIP_API_ROUTES: 'true',
-        SKIP_FIREBASE_ADMIN: 'true',
-        SKIP_FIREBASE_PATCH: 'true',
-        NEXT_PUBLIC_IS_NETLIFY_BUILD: 'true',
-        NEXT_STATIC_EXPORT: 'false'
-      }
-    });
     
-    console.log('Build completed successfully!');
+    // Use a try-catch block specifically for the build command
+    try {
+      execSync('next build', { 
+        stdio: 'inherit',
+        env: {
+          ...process.env,
+          NETLIFY: 'true',
+          SKIP_FIREBASE_INIT_ON_BUILD: 'true',
+          SKIP_API_ROUTES: 'true',
+          SKIP_FIREBASE_ADMIN: 'true',
+          SKIP_FIREBASE_PATCH: 'true',
+          NEXT_PUBLIC_IS_NETLIFY_BUILD: 'true',
+          NEXT_STATIC_EXPORT: 'false'
+        }
+      });
+      console.log('Build completed successfully!');
+    } catch (buildError) {
+      console.error('Build command failed:');
+      console.error('Error message:', buildError.message);
+      console.error('Error code:', buildError.code);
+      
+      // Try a simpler build approach as fallback
+      console.log('Trying fallback build approach...');
+      
+      execSync('SKIP_FIREBASE_INIT_ON_BUILD=true SKIP_API_ROUTES=true SKIP_FIREBASE_ADMIN=true next build', { 
+        stdio: 'inherit'
+      });
+    }
   } catch (error) {
-    console.error('Build failed:', error.message);
+    console.error('Build script failed:', error.message);
     process.exit(1);
   } finally {
     // Clean up

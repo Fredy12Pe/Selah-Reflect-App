@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { getFirebaseDb, getFirebaseAuth } from "@/lib/firebase";
+import { getFirebaseFirestore, getFirebaseAuth } from "@/lib/firebase";
 import { doc, setDoc } from "firebase/firestore";
 import { isBrowser } from "@/lib/utils/environment";
 
@@ -27,7 +27,7 @@ export default function JournalEntry({
     setError(null);
     setSaving(true);
     try {
-      const db = getFirebaseDb();
+      const db = getFirebaseFirestore();
       const auth = getFirebaseAuth();
 
       if (!db || !auth) {

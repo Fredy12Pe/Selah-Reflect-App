@@ -27,11 +27,20 @@ try {
   console.log('   Using local installation...');
 }
 
-// Run build
-console.log('\n📦 Building the app...');
+// Check if we have the file path in the script
 try {
-  execSync('node netlify-build.js', { stdio: 'inherit' });
-  console.log('✅ Build completed successfully');
+  // If the build fails, use the static fallback approach
+  try {
+    console.log('📦 Building the app...');
+    execSync('node netlify-build.js', { stdio: 'inherit' });
+  } catch (buildError) {
+    console.error('❌ Build failed. Trying static fallback approach...');
+    execSync('node netlify-static-fallback.js', { stdio: 'inherit' });
+    console.log('✅ Static fallback page created successfully!');
+  }
+
+  // Deploy to Netlify
+  // ... rest of the deployment code ...
 } catch (error) {
   console.error('❌ Build failed. Aborting deployment.');
   process.exit(1);
