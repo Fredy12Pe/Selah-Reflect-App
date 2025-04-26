@@ -16,6 +16,11 @@
   NETLIFY = "true"
   NEXT_STATIC_EXPORT = "true"
   TYPESCRIPT_IGNORE_BUILD_ERRORS = "true"
+  NETLIFY_NEXT_PLUGIN_SKIP = "true"
+
+# Use our custom plugin to disable the Next.js plugin
+[[plugins]]
+  package = "/plugins/override-nextjs-plugin"
 
 # Note: We're using a custom static export, not the Next.js plugin
 

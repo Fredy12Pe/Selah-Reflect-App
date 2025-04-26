@@ -1,0 +1,2 @@
+name: override-nextjs-plugin
+description: Disables the Next.js plugin for builds using static exports
