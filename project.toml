@@ -11,6 +11,6 @@ value = "true"
 name = "NODE_ENV"
 value = "production"
 
-# Build command
+# Build command including the Firebase patch
 [build]
-command = "npm install && npm run build:firebase && cp -r out/* ." 
+command = "npm install && npm run patch:firebase && npm run patch:undici && npm run build:firebase && cp -r out/* ." 

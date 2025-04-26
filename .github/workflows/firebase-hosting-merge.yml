@@ -27,6 +27,9 @@ jobs:
       - name: List files for debugging
         run: ls -la
 
+      - name: Apply Firebase fixes
+        run: node fix-firebase-build.js
+
       - name: Check next.config.js
         run: cat next.config.js
 

@@ -1,174 +1,127 @@
 /**
- * Fix Firebase Build Issues
- * 
- * This script helps diagnose and fix Firebase initialization issues during the Netlify build.
+ * Firebase Build Fix Script
+ * This script specifically addresses issues with private class fields in Firebase dependencies
+ * for Cloud Run deployments.
  */
+
+const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
 
-// List of pages to temporarily disable during build
-const ADMIN_PAGES = [
-  'app/admin/page.tsx',
-  'app/admin/devotions/page.tsx',
-  'app/admin/generate-devotions/page.tsx',
-];
+console.log('Starting Firebase build fix process...');
 
-// List of routes to check and remove if they exist
-const ROUTE_FILES = [
-  'app/admin/route.js',
-  'app/admin/route.ts',
-  'app/admin/devotions/route.js',
-  'app/admin/devotions/route.ts',
-  'app/admin/generate-devotions/route.js',
-  'app/admin/generate-devotions/route.ts',
-];
-
-// Function to clean up any existing route files
-function cleanupRouteFiles() {
-  console.log('Checking for and removing any existing route files...');
+// Function to find all potential problematic files
+function findProblematicFiles() {
+  console.log('Scanning for files with private class fields...');
   
-  ROUTE_FILES.forEach(routePath => {
-    if (fs.existsSync(routePath)) {
-      fs.unlinkSync(routePath);
-      console.log(`Removed existing route file: ${routePath}`);
-    }
-  });
-}
-
-// Function to temporarily disable admin pages
-function disableAdminPages() {
-  console.log('Temporarily disabling admin pages...');
-  
-  ADMIN_PAGES.forEach(pagePath => {
-    if (fs.existsSync(pagePath)) {
-      const newPath = `${pagePath}.bak`;
-      fs.renameSync(pagePath, newPath);
-      console.log(`Renamed ${pagePath} to ${newPath}`);
-      
-      // Create a simple placeholder page
-      const placeholderContent = `
-"use client";
-
-export default function AdminPlaceholder() {
-  return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold mb-4">Admin Area</h1>
-        <p>This page is only available when logged in.</p>
-      </div>
-    </div>
-  );
-}
-`;
-      
-      fs.writeFileSync(pagePath, placeholderContent);
-      console.log(`Created placeholder for ${pagePath}`);
-    }
-  });
-}
-
-// Function to restore admin pages
-function restoreAdminPages() {
-  console.log('Restoring admin pages...');
-  
-  ADMIN_PAGES.forEach(pagePath => {
-    const backupPath = `${pagePath}.bak`;
-    if (fs.existsSync(backupPath)) {
-      // Remove placeholder
-      if (fs.existsSync(pagePath)) {
-        fs.unlinkSync(pagePath);
-      }
-      
-      // Restore original
-      fs.renameSync(backupPath, pagePath);
-      console.log(`Restored ${pagePath}`);
-    }
-  });
-}
-
-// Function to create a build environment file
-function createBuildEnvFile() {
-  console.log('Creating .env.build file...');
-  
-  const envContent = `
-# Temporary environment file for build
-NETLIFY=true
-SKIP_FIREBASE_INIT_ON_BUILD=true
-SKIP_API_ROUTES=true
-SKIP_FIREBASE_ADMIN=true
-SKIP_FIREBASE_PATCH=true
-NEXT_PUBLIC_IS_NETLIFY_BUILD=true
-NEXT_STATIC_EXPORT=false
-  `.trim();
-  
-  fs.writeFileSync('.env.build', envContent);
-  console.log('Created .env.build file');
-}
-
-// Main function to run the build
-async function runBuild() {
+  const results = [];
   try {
-    // Prepare build environment
-    createBuildEnvFile();
-    cleanupRouteFiles();
-    disableAdminPages();
+    // Look for files containing private class fields in Firebase dependencies
+    const command = `grep -r "#\\w\\+ in this" --include="*.js" node_modules/firebase node_modules/@firebase 2>/dev/null || true`;
+    const output = execSync(command, { encoding: 'utf8' });
     
-    // Add debug info to help troubleshoot build issues
-    console.log('Environment variables set for build:');
-    console.log('- NETLIFY:', process.env.NETLIFY);
-    console.log('- SKIP_FIREBASE_INIT_ON_BUILD:', process.env.SKIP_FIREBASE_INIT_ON_BUILD);
-    console.log('- SKIP_API_ROUTES:', process.env.SKIP_API_ROUTES);
-    console.log('- SKIP_FIREBASE_ADMIN:', process.env.SKIP_FIREBASE_ADMIN);
-    console.log('- SKIP_FIREBASE_PATCH:', process.env.SKIP_FIREBASE_PATCH);
-    console.log('- NEXT_PUBLIC_IS_NETLIFY_BUILD:', process.env.NEXT_PUBLIC_IS_NETLIFY_BUILD);
-    
-    // Run the build with clean environment
-    console.log('Running Next.js build...');
-    
-    // Use a try-catch block specifically for the build command
-    try {
-      execSync('next build', { 
-        stdio: 'inherit',
-        env: {
-          ...process.env,
-          NETLIFY: 'true',
-          SKIP_FIREBASE_INIT_ON_BUILD: 'true',
-          SKIP_API_ROUTES: 'true',
-          SKIP_FIREBASE_ADMIN: 'true',
-          SKIP_FIREBASE_PATCH: 'true',
-          NEXT_PUBLIC_IS_NETLIFY_BUILD: 'true',
-          NEXT_STATIC_EXPORT: 'false'
+    if (output.trim()) {
+      const lines = output.trim().split('\n');
+      lines.forEach(line => {
+        const filePath = line.split(':')[0];
+        if (filePath && !results.includes(filePath)) {
+          results.push(filePath);
         }
       });
-      console.log('Build completed successfully!');
-    } catch (buildError) {
-      console.error('Build command failed:');
-      console.error('Error message:', buildError.message);
-      console.error('Error code:', buildError.code);
-      
-      // Try a simpler build approach as fallback
-      console.log('Trying fallback build approach...');
-      
-      execSync('SKIP_FIREBASE_INIT_ON_BUILD=true SKIP_API_ROUTES=true SKIP_FIREBASE_ADMIN=true next build', { 
-        stdio: 'inherit'
-      });
     }
+    
+    console.log(`Found ${results.length} files with potential issues.`);
   } catch (error) {
-    console.error('Build script failed:', error.message);
-    process.exit(1);
-  } finally {
-    // Clean up
-    restoreAdminPages();
-    if (fs.existsSync('.env.build')) {
-      fs.unlinkSync('.env.build');
-      console.log('Removed .env.build file');
-    }
+    console.error('Error scanning for problematic files:', error);
+  }
+  
+  return results;
+}
+
+// Function to patch a single file
+function patchFile(filePath) {
+  if (!fs.existsSync(filePath)) {
+    console.log(`File not found: ${filePath}`);
+    return false;
+  }
+  
+  console.log(`Patching file: ${filePath}`);
+  let content = fs.readFileSync(filePath, 'utf8');
+  let originalContent = content;
+  
+  // Create a backup of the original file
+  if (!fs.existsSync(`${filePath}.original`)) {
+    fs.writeFileSync(`${filePath}.original`, content, 'utf8');
+  }
+  
+  // Replace private field access patterns
+  let newContent = content
+    // Replace #field in this with hasOwnProperty check
+    .replace(/#(\w+)\s+in\s+this/g, 'Object.prototype.hasOwnProperty.call(this, "_$$$_$1")')
+    // Replace this.#field with this._$$$_field
+    .replace(/this\.#(\w+)/g, 'this._$$$_$1')
+    // Replace #field = with _$$$_field =
+    .replace(/#(\w+)\s*=/g, '_$$$_$1 =');
+  
+  if (newContent !== content) {
+    fs.writeFileSync(filePath, newContent, 'utf8');
+    console.log(`- Successfully patched ${filePath}`);
+    return true;
+  } else {
+    console.log(`- No changes needed for ${filePath}`);
+    return false;
   }
 }
 
-// Run the build
-runBuild().catch(err => {
-  console.error('Script failed:', err);
+// Main function
+async function main() {
+  try {
+    // Apply storage fix patch
+    console.log('\nApplying Node.js import patches for Firebase Storage...');
+    const storageFixPath = path.join(__dirname, 'patches', 'firebase-storage-fix', 'patch-node-imports.js');
+    if (fs.existsSync(storageFixPath)) {
+      execSync(`node ${storageFixPath}`, { stdio: 'inherit' });
+    } else {
+      console.log(`Warning: Storage fix patch not found at ${storageFixPath}`);
+    }
+    
+    // Apply undici fix patch
+    console.log('\nApplying private fields patch for undici module...');
+    const undiciFixPath = path.join(__dirname, 'patches', 'firebase-undici-fix', 'patch-private-fields.js');
+    if (fs.existsSync(undiciFixPath)) {
+      execSync(`node ${undiciFixPath}`, { stdio: 'inherit' });
+    } else {
+      console.log(`Warning: Undici fix patch not found at ${undiciFixPath}`);
+    }
+    
+    // Find and fix any remaining problematic files
+    console.log('\nScanning for any remaining issues...');
+    const problematicFiles = findProblematicFiles();
+    
+    if (problematicFiles.length > 0) {
+      console.log(`Found ${problematicFiles.length} files that need patching:`);
+      let patchedCount = 0;
+      
+      problematicFiles.forEach(file => {
+        if (patchFile(file)) {
+          patchedCount++;
+        }
+      });
+      
+      console.log(`Successfully patched ${patchedCount} out of ${problematicFiles.length} files.`);
+    } else {
+      console.log('No additional files with private class fields found.');
+    }
+    
+    console.log('\nFix process completed successfully!');
+  } catch (error) {
+    console.error('Error during fix process:', error);
+    process.exit(1);
+  }
+}
+
+// Run the main function
+main().catch(error => {
+  console.error('Unhandled error:', error);
   process.exit(1);
 }); 

@@ -20,6 +20,19 @@ try {
   console.error('Error cleaning directories:', error);
 }
 
+// Apply Firebase patches
+console.log('Applying Firebase patches...');
+try {
+  console.log('Applying Node.js import patches for Firebase Storage...');
+  execSync('node patches/firebase-storage-fix/patch-node-imports.js', { stdio: 'inherit' });
+  
+  console.log('Applying private fields patch for undici module...');
+  execSync('node patches/firebase-undici-fix/patch-private-fields.js', { stdio: 'inherit' });
+} catch (error) {
+  console.error('Error applying patches:', error);
+  process.exit(1);
+}
+
 // Fix the problematic process/browser.js file if it exists
 console.log('Checking process module...');
 const processBrowserPath = path.join(process.cwd(), 'node_modules', 'process', 'browser.js');
